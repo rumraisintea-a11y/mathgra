@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>楕円曲面 y² = 4x³ − f(t)x − g(t)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, sans-serif;
+    background: #0f1117;
+    color: #e0e0e0;
+    padding: 16px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 15px;
+    font-weight: 500;
+    color: #aaa;
+    margin-bottom: 12px;
+    letter-spacing: 0.02em;
+  }
+  h1 span { color: #7ab3e0; }
+
+  .controls {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 6px 10px;
+    align-items: center;
+    margin-bottom: 10px;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+  .controls label { font-size: 13px; font-weight: 500; white-space: nowrap; color: #bbb; }
+  .controls input[type="text"] {
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+    padding: 5px 10px;
+    background: #0f1117;
+    border: 1px solid #3a3d4a;
+    border-radius: 5px;
+    color: #e0e0e0;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .controls input[type="text"]:focus { border-color: #378add; }
+  .status { font-size: 16px; width: 20px; text-align: center; }
+  .status.ok { color: #1d9e75; }
+  .status.err { color: #e24b4a; }
+
+  .hint {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 10px;
+    line-height: 1.8;
+  }
+  .hint code { background: #1e2130; padding: 1px 5px; border-radius: 3px; color: #9ab; font-family: monospace; }
+
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .toolbar .group {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 6px;
+    padding: 5px 10px;
+  }
+  .toolbar label { font-size: 12px; color: #bbb; cursor: pointer; }
+  .toolbar input[type="radio"] { accent-color: #378add; }
+  .sep { color: #333; }
+
+  button {
+    font-size: 12px;
+    padding: 5px 12px;
+    background: #1a1d27;
+    border: 1px solid #3a3d4a;
+    border-radius: 5px;
+    color: #ccc;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  button:hover { background: #23273a; border-color: #555; }
+  button.primary {
+    background: #185fa5;
+    border-color: #2a7acc;
+    color: #fff;
+    font-weight: 500;
+  }
+  button.primary:hover { background: #1e70be; }
+
+  .slider-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 4px 10px;
+    align-items: center;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
+  }
+  .slider-row label { font-size: 11px; color: #888; white-space: nowrap; }
+  .slider-row input[type="range"] { width: 100%; accent-color: #378add; }
+  .slider-row span { font-size: 11px; font-family: monospace; color: #aaa; min-width: 48px; text-align: right; }
+
+  .presets {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+  .presets span { font-size: 11px; color: #666; }
+  .preset {
+    font-size: 11px;
+    padding: 3px 10px;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 12px;
+    color: #aaa;
+  }
+  .preset:hover { border-color: #378add; color: #7ab3e0; }
+
+  .discrim {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: #1a1d27;
+    border: 1px solid #2a2d3a;
+    border-radius: 5px;
+    color: #aaa;
+  }
+  .discrim span { font-weight: 600; }
+
+  canvas {
+    width: 100%;
+    display: block;
+    border: 1px solid #2a2d3a;
+    border-radius: 8px;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+
+  .footer {
+    display: flex;
+    gap: 16px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .footer span { font-size: 11px; color: #555; }
+  #errMsg { font-size: 11px; color: #e24b4a; margin-top: 4px; min-height: 16px; }
+</style>
+</head>
+<body>
+
+<h1>楕円曲面 &nbsp; <span>y² = 4x³ − f(t)·x − g(t)</span></h1>
+
+<div class="controls">
+  <label>f(t) =</label>
+  <input type="text" id="fExpr" value="sin(t)" placeholder="例: sin(t), t^2, cos(2*t)+1">
+  <span class="status ok" id="fStatus">✓</span>
+
+  <label>g(t) =</label>
+  <input type="text" id="gExpr" value="cos(t)" placeholder="例: cos(t), t^3-t, sin(2*t)">
+  <span class="status ok" id="gStatus">✓</span>
+</div>
+
+<div class="hint">
+  使える関数: <code>sin</code> <code>cos</code> <code>tan</code> <code>exp</code> <code>log</code> <code>sqrt</code> <code>abs</code>
+  &nbsp;|&nbsp; 定数: <code>pi</code> <code>e</code>
+  &nbsp;|&nbsp; べき乗: <code>t^2</code>
+  &nbsp;|&nbsp; Enter キーで適用
+</div>
+
+<div class="toolbar">
+  <div class="group">
+    <span class="sep">モード:</span>
+    <label><input type="radio" name="mode" value="surface" checked> 曲面</label>
+    <label><input type="radio" name="mode" value="fiber"> ファイバー</label>
+    <label><input type="radio" name="mode" value="both"> 両方</label>
+  </div>
+  <div class="discrim">Δ = <span id="discrim">---</span></div>
+  <button id="animBtn">▶ アニメ</button>
+  <button class="primary" id="applyBtn">適用</button>
+</div>
+
+<div class="slider-row">
+  <label>t（ファイバー位置）</label>
+  <input type="range" id="tSlider" min="-3.14" max="3.14" step="0.02" value="0">
+  <span id="tval">0.00</span>
+
+  <label>t 表示範囲</label>
+  <input type="range" id="tRange" min="1" max="10" step="0.5" value="3.14">
+  <span id="trangeval">±π</span>
+</div>
+
+<div class="presets">
+  <span>プリセット:</span>
+  <button class="preset" data-f="sin(t)" data-g="cos(t)">sin / cos</button>
+  <button class="preset" data-f="t^2-1" data-g="t^3-t">t²−1 / t³−t</button>
+  <button class="preset" data-f="2*cos(t)+cos(2*t)" data-g="2*sin(t)-sin(2*t)">エピサイクロイド</button>
+  <button class="preset" data-f="exp(-t^2)" data-g="t*sin(t)">ガウス×正弦</button>
+  <button class="preset" data-f="1" data-g="0">定数 (1, 0)</button>
+</div>
+
+<canvas id="c"></canvas>
+
+<div class="footer">
+  <span>🖱 ドラッグ: 回転 &nbsp; ホイール: ズーム</span>
+  <span>📱 タッチ操作対応</span>
+</div>
+<div id="errMsg"></div>
+
+<!-- Three.js r128 -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  /* ── 数式パーサー ── */
+  function parseExpr(expr) {
+    const s = expr.trim()
+      .replace(/\^/g, "**")
+      .replace(/\bpi\b/g, "Math.PI")
+      .replace(/\be\b/g, "Math.E")
+      .replace(/\b(sin|cos|tan|exp|log|sqrt|abs)\b/g, "Math.$1");
+    return new Function("t", "return (" + s + ");");
+  }
+
+  function testFn(fn) {
+    const v = fn(1.0);
+    return typeof v === "number";
+  }
+
+  let fFn = (t) => Math.sin(t);
+  let gFn = (t) => Math.cos(t);
+
+  function setStatus(id, ok) {
+    const el = document.getElementById(id);
+    el.textContent = ok ? "✓" : "✗";
+    el.className = "status " + (ok ? "ok" : "err");
+  }
+
+  function compileExprs() {
+    let ok = true;
+    try {
+      const f = parseExpr(document.getElementById("fExpr").value);
+      testFn(f);
+      fFn = f;
+      setStatus("fStatus", true);
+    } catch (e) {
+      setStatus("fStatus", false);
+      ok = false;
+    }
+    try {
+      const g = parseExpr(document.getElementById("gExpr").value);
+      testFn(g);
+      gFn = g;
+      setStatus("gStatus", true);
+    } catch (e) {
+      setStatus("gStatus", false);
+      ok = false;
+    }
+    return ok;
+  }
+
+  /* ── Three.js セットアップ ── */
+  const canvas = document.getElementById("c");
+
+  // キャンバスサイズをウィンドウに合わせる
+  const W = Math.min(window.innerWidth - 32, 1200);
+  const H = Math.round(W * 0.6);
+  canvas.width = W;
+  canvas.height = H;
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(W, H);
+  renderer.setClearColor(0x0f1117, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, W / H, 0.1, 300);
+  let theta = 0.6, phi = 0.55, radius = 11;
+
+  function updateCam() {
+    camera.position.set(
+      radius * Math.sin(phi) * Math.sin(theta),
+      radius * Math.cos(phi),
+      radius * Math.sin(phi) * Math.cos(theta)
+    );
+    camera.lookAt(0, 0, 0);
+  }
+  updateCam();
+
+  // ライティング
+  scene.add(new THREE.AmbientLight(0xffffff, 0.4));
+  const dl = new THREE.DirectionalLight(0xffffff, 0.9);
+  dl.position.set(5, 8, 6);
+  scene.add(dl);
+  const dl2 = new THREE.DirectionalLight(0x8888ff, 0.3);
+  dl2.position.set(-4, -3, -5);
+  scene.add(dl2);
+
+  // 座標軸
+  const axMat = new THREE.LineBasicMaterial({ color: 0x444466, opacity: 0.6, transparent: true });
+  function mkAxis(a, b) {
+    return new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(...a), new THREE.Vector3(...b)]),
+      axMat
+    );
+  }
+  scene.add(mkAxis([-5, 0, 0], [5, 0, 0]));
+  scene.add(mkAxis([0, -5, 0], [0, 5, 0]));
+  scene.add(mkAxis([0, 0, -5], [0, 0, 5]));
+
+  let surfMesh = null;
+  const fiberGroup = new THREE.Group();
+  scene.add(fiberGroup);
+
+  /* ── 曲面構築 ── */
+  function buildSurface() {
+    if (surfMesh) {
+      scene.remove(surfMesh);
+      surfMesh.geometry.dispose();
+      surfMesh.material.dispose();
+    }
+    const Nx = 55, Nt = 55;
+    const xMin = -2.5, xMax = 2.5;
+    const tR = getTRange();
+    const tMin = -tR, tMax = tR;
+    const verts = [], colors = [], inds = [];
+    const c0 = new THREE.Color(0x185fa5);
+    const c1 = new THREE.Color(0x0f6e56);
+
+    for (let layer = 0; layer < 2; layer++) {
+      const sign = layer === 0 ? 1 : -1;
+      for (let ix = 0; ix <= Nx; ix++) {
+        for (let it = 0; it <= Nt; it++) {
+          const x = xMin + (xMax - xMin) * (ix / Nx);
+          const t = tMin + (tMax - tMin) * (it / Nt);
+          let f, g;
+          try { f = fFn(t); g = gFn(t); } catch (e) { f = 0; g = 0; }
+          if (!isFinite(f)) f = 0;
+          if (!isFinite(g)) g = 0;
+          const rhs = 4 * x * x * x - f * x - g;
+          const y = rhs >= 0 ? sign * Math.sqrt(rhs) : 0;
+          verts.push(x, y, t);
+          const cc = c0.clone().lerp(c1, Math.abs(y) / 4);
+          colors.push(cc.r, cc.g, cc.b);
+          if (ix < Nx && it < Nt) {
+            const base = layer * (Nx + 1) * (Nt + 1) + ix * (Nt + 1) + it;
+            const a = base, b = base + 1, c2 = base + (Nt + 1), d = c2 + 1;
+            inds.push(a, b, d, a, d, c2);
+          }
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+    geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+    geo.setIndex(inds);
+    geo.computeVertexNormals();
+    const mat = new THREE.MeshPhongMaterial({
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      shininess: 55,
+      opacity: 0.82,
+      transparent: true,
+    });
+    surfMesh = new THREE.Mesh(geo, mat);
+    scene.add(surfMesh);
+  }
+
+  /* ── ファイバー構築 ── */
+  function buildFibers(t0) {
+    while (fiberGroup.children.length) fiberGroup.remove(fiberGroup.children[0]);
+    let f, g;
+    try { f = fFn(t0); g = gFn(t0); } catch (e) { return; }
+    if (!isFinite(f)) f = 0;
+    if (!isFinite(g)) g = 0;
+
+    const pts1 = [], pts2 = [];
+    for (let i = 0; i <= 120; i++) {
+      const x = -2.5 + 5 * (i / 120);
+      const rhs = 4 * x * x * x - f * x - g;
+      if (rhs >= 0) {
+        const y = Math.sqrt(rhs);
+        pts1.push(new THREE.Vector3(x, y, t0));
+        pts2.push(new THREE.Vector3(x, -y, t0));
+      }
+    }
+    const lm = new THREE.LineBasicMaterial({ color: 0xef9f27, linewidth: 2 });
+    if (pts1.length > 1) fiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts1), lm));
+    if (pts2.length > 1) fiberGroup.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts2), lm));
+
+    // 半透明平面
+    const pg = new THREE.PlaneGeometry(5, 12);
+    const pm = new THREE.MeshBasicMaterial({ color: 0xfac775, opacity: 0.06, transparent: true, side: THREE.DoubleSide });
+    const pl = new THREE.Mesh(pg, pm);
+    pl.rotation.y = Math.PI / 2;
+    pl.position.set(0, 0, t0);
+    fiberGroup.add(pl);
+
+    // 判別式
+    const delta = -(4 * (-f) ** 3 + 27 * (-g) ** 2);
+    const el = document.getElementById("discrim");
+    el.textContent = delta.toFixed(3);
+    el.style.color = delta > 0 ? "#1d9e75" : "#e24b4a";
+  }
+
+  /* ── 再描画 ── */
+  function getMode() { return document.querySelector("input[name=mode]:checked").value; }
+  function getTRange() { return parseFloat(document.getElementById("tRange").value); }
+
+  function redraw() {
+    const mode = getMode();
+    const t0 = parseFloat(document.getElementById("tSlider").value);
+    if (mode === "surface" || mode === "both") buildSurface();
+    else if (surfMesh) scene.remove(surfMesh);
+    if (mode === "fiber" || mode === "both") buildFibers(t0);
+    else while (fiberGroup.children.length) fiberGroup.remove(fiberGroup.children[0]);
+  }
+
+  /* ── イベントリスナー ── */
+  document.getElementById("applyBtn").addEventListener("click", () => {
+    document.getElementById("errMsg").textContent = "";
+    if (compileExprs()) redraw();
+    else document.getElementById("errMsg").textContent = "数式にエラーがあります";
+  });
+
+  ["fExpr", "gExpr"].forEach((id) => {
+    document.getElementById(id).addEventListener("keydown", (e) => {
+      if (e.key === "Enter") document.getElementById("applyBtn").click();
+    });
+  });
+
+  document.getElementById("tSlider").addEventListener("input", () => {
+    const t = parseFloat(document.getElementById("tSlider").value);
+    document.getElementById("tval").textContent = t.toFixed(2);
+    const mode = getMode();
+    if (mode === "fiber" || mode === "both") buildFibers(t);
+  });
+
+  document.getElementById("tRange").addEventListener("input", () => {
+    const v = parseFloat(document.getElementById("tRange").value);
+    const el = document.getElementById("trangeval");
+    if (Math.abs(v - Math.PI) < 0.1) el.textContent = "±π";
+    else if (Math.abs(v - 2 * Math.PI) < 0.1) el.textContent = "±2π";
+    else el.textContent = "±" + v.toFixed(1);
+    document.getElementById("tSlider").min = -v;
+    document.getElementById("tSlider").max = v;
+    redraw();
+  });
+
+  document.querySelectorAll("input[name=mode]").forEach((r) => r.addEventListener("change", redraw));
+
+  document.querySelectorAll(".preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      document.getElementById("fExpr").value = btn.dataset.f;
+      document.getElementById("gExpr").value = btn.dataset.g;
+      compileExprs();
+      redraw();
+    });
+  });
+
+  /* ── アニメーション ── */
+  let animId = null, tAnim = 0;
+  document.getElementById("animBtn").addEventListener("click", () => {
+    if (animId) {
+      cancelAnimationFrame(animId);
+      animId = null;
+      document.getElementById("animBtn").textContent = "▶ アニメ";
+      return;
+    }
+    document.getElementById("animBtn").textContent = "⏹ 停止";
+    const tick = () => {
+      const tR = getTRange();
+      tAnim = ((tAnim + 0.03 + tR) % (2 * tR)) - tR;
+      document.getElementById("tSlider").value = tAnim;
+      document.getElementById("tval").textContent = tAnim.toFixed(2);
+      const mode = getMode();
+      if (mode === "fiber" || mode === "both") buildFibers(tAnim);
+      animId = requestAnimationFrame(tick);
+    };
+    animId = requestAnimationFrame(tick);
+  });
+
+  /* ── マウス操作 ── */
+  let drag = false, lastX = 0, lastY = 0;
+  canvas.addEventListener("mousedown", (e) => { drag = true; lastX = e.clientX; lastY = e.clientY; });
+  window.addEventListener("mouseup", () => { drag = false; });
+  window.addEventListener("mousemove", (e) => {
+    if (!drag) return;
+    theta -= (e.clientX - lastX) * 0.01;
+    phi -= (e.clientY - lastY) * 0.01;
+    phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi));
+    lastX = e.clientX; lastY = e.clientY;
+    updateCam();
+  });
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    radius = Math.max(3, Math.min(30, radius + e.deltaY * 0.025));
+    updateCam();
+  }, { passive: false });
+
+  /* ── タッチ操作 ── */
+  let touch0 = null;
+  canvas.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 1) { touch0 = { x: e.touches[0].clientX, y: e.touches[0].clientY }; drag = true; }
+  }, { passive: true });
+  canvas.addEventListener("touchend", () => { drag = false; touch0 = null; }, { passive: true });
+  canvas.addEventListener("touchmove", (e) => {
+    if (!drag || !touch0) return;
+    theta -= (e.touches[0].clientX - touch0.x) * 0.01;
+    phi -= (e.touches[0].clientY - touch0.y) * 0.01;
+    phi = Math.max(0.05, Math.min(Math.PI - 0.05, phi));
+    touch0 = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    updateCam();
+  }, { passive: true });
+
+  /* ── レンダーループ ── */
+  function loop() { requestAnimationFrame(loop); renderer.render(scene, camera); }
+  loop();
+
+  // 初期描画
+  redraw();
+})();
+</script>
+</body>
+</html>
