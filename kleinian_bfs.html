@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Kleinian group — BFS limit set</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; background: #0d0d14; color: #ddd;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #wrap { display: flex; flex-direction: column; align-items: center; padding: 16px; gap: 12px; max-width: 820px; margin: 0 auto; }
+  canvas { background: #06060c; border-radius: 6px; box-shadow: 0 4px 24px rgba(0,0,0,0.7); display: block; }
+  .panel {
+    display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center;
+    background: #1a1a24; padding: 12px 16px; border-radius: 8px;
+    font-size: 13px; width: 100%; box-sizing: border-box;
+  }
+  .panel label { display: flex; align-items: center; gap: 6px; }
+  input[type=range] { width: 120px; vertical-align: middle; }
+  input[type=number] { width: 70px; background: #2a2a36; color: #ddd; border: 1px solid #555; border-radius: 4px; padding: 3px 6px; font-size: 12px; }
+  button {
+    padding: 6px 14px; background: #3a3a4a; color: #ddd; border: 1px solid #555;
+    border-radius: 4px; cursor: pointer; font-size: 13px;
+  }
+  button:hover { background: #4a4a5a; }
+  button.primary { background: #c08030; border-color: #d0a050; color: #fff; }
+  button.primary:hover { background: #d09040; }
+  .stat { color: #aaa; font-variant-numeric: tabular-nums; }
+  .stat b { color: #f0c050; font-weight: 500; }
+  h1 { font-size: 16px; font-weight: 500; margin: 8px 0 0; color: #f0c050; }
+  .note { font-size: 12px; color: #888; line-height: 1.6; }
+  select { background: #3a3a4a; color: #ddd; border: 1px solid #555; padding: 4px 6px; border-radius: 4px; }
+  .trace-row { font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>Kleinian group — BFS exploration of the limit set</h1>
+
+  <canvas id="cv" width="760" height="760"></canvas>
+
+  <div class="panel">
+    <label>Preset:
+      <select id="preset">
+        <option value="apollonian" selected>Apollonian gasket</option>
+        <option value="maskit">Maskit slice (Jordan curve)</option>
+        <option value="quasifuchsian">Quasi-Fuchsian</option>
+        <option value="cusp">Cusp limit (Mumford-Series-Wright)</option>
+        <option value="schottky">Loxodromic Schottky</option>
+      </select>
+    </label>
+    <label>Depth: <input type="range" id="depth" min="6" max="30" value="14"><span id="depthVal">14</span></label>
+    <label>Min ε (px): <input type="range" id="minr" min="0.3" max="6" value="0.8" step="0.1"><span id="minrVal">0.8</span></label>
+    <button id="run" class="primary">▶ Run BFS</button>
+    <button id="pause">⏸ Pause</button>
+    <button id="reset">⟳ Reset</button>
+  </div>
+
+  <div class="panel stat">
+    <span>Queue: <b id="qLen">0</b></span>
+    <span>Words visited: <b id="visLen">0</b></span>
+    <span>Leaves (depth=max): <b id="leaves">0</b></span>
+    <span>Pruned (ε): <b id="pruned">0</b></span>
+    <span class="trace-row">tr(a)=<b id="trA">—</b>  tr(b)=<b id="trB">—</b></span>
+  </div>
+
+  <div class="note">
+    Γ = ⟨a, b⟩ is a 2-generator Kleinian group. BFS walks the Cayley graph of the free group F₂,
+    appending one of {a, A=a⁻¹, b, B=b⁻¹} per step and forbidding the inverse of the previous
+    letter so paths are reduced words. For each visited word w we draw its isometric circle
+    I(w) = {z : |w′(z)| = 1} in faint blue — every descendant of w lies inside I(w), so we prune
+    a branch when I(w) shrinks below the pixel threshold ε. Leaf words (depth = max) plot their
+    fixed points in yellow, which accumulate on the limit set Λ(Γ).
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ====== Complex ======
+const cx = (re, im=0) => ({re, im});
+const cAdd = (a,b) => ({re:a.re+b.re, im:a.im+b.im});
+const cSub = (a,b) => ({re:a.re-b.re, im:a.im-b.im});
+const cMul = (a,b) => ({re:a.re*b.re-a.im*b.im, im:a.re*b.im+a.im*b.re});
+const cNeg = a => ({re:-a.re, im:-a.im});
+const cK   = (s,a) => ({re:s*a.re, im:s*a.im});
+const cAbs = a => Math.hypot(a.re, a.im);
+function cDiv(a,b){
+  const d = b.re*b.re + b.im*b.im;
+  return {re:(a.re*b.re+a.im*b.im)/d, im:(a.im*b.re-a.re*b.im)/d};
+}
+function csqrt(z){
+  const r = Math.sqrt(cAbs(z));
+  const t = Math.atan2(z.im, z.re) / 2;
+  return cx(r*Math.cos(t), r*Math.sin(t));
+}
+
+// ====== Möbius matrices ======
+const mat = (a,b,c,d) => ({a,b,c,d});
+
+function mMul(M,N){
+  return mat(
+    cAdd(cMul(M.a,N.a), cMul(M.b,N.c)),
+    cAdd(cMul(M.a,N.b), cMul(M.b,N.d)),
+    cAdd(cMul(M.c,N.a), cMul(M.d,N.c)),
+    cAdd(cMul(M.c,N.b), cMul(M.d,N.d))
+  );
+}
+const mInv = M => mat(M.d, cNeg(M.b), cNeg(M.c), M.a);  // assumes det = 1
+
+function fixedPoints(M){
+  const A = M.c, B = cSub(M.d, M.a), Cc = cNeg(M.b);
+  if (cAbs(A) < 1e-14){
+    if (cAbs(B) < 1e-14) return [];
+    return [cDiv(cNeg(Cc), B)];
+  }
+  const disc = cSub(cMul(B,B), cK(4, cMul(A, Cc)));
+  const sd = csqrt(disc);
+  const twoA = cK(2, A);
+  return [cDiv(cAdd(cNeg(B), sd), twoA),
+          cDiv(cSub(cNeg(B), sd), twoA)];
+}
+
+function isoCircle(M){
+  const cA = cAbs(M.c);
+  if (cA < 1e-15) return null;
+  const center = cNeg(cDiv(M.d, M.c));
+  return {cx: center.re, cy: center.im, r: 1/cA};
+}
+
+function trace(M){ return cAdd(M.a, M.d); }
+
+// ====== Presets ======
+
+// All presets use the simple Maskit-style parametrization:
+//   a = [[μ, 1], [1, 0]]       (trace = μ, loxodromic for |μ| > 2 or parabolic for μ = ±2)
+//   b = [[1, 0], [-iν, 1]]     (parabolic, trace = 2, conjugate of [[1,2],[0,1]] swapped)
+// Or equivalently with a = [[μ,1],[1,0]] and b = [[1,τ],[0,1]] (translation by τ).
+// Different (μ, τ) give different Kleinian groups.
+
+// Build the pair from μ ∈ C and τ ∈ C (with τ = 2 standard).
+function maskitPair(mu, tau){
+  const a = mat(mu, cx(1,0), cx(1,0), cx(0,0));         // det = 0·μ − 1·1 = −1, fix later
+  // Actually [[μ,1],[1,0]] has det = -1, not 1. Use [[μ, -1],[1, 0]] which has det = 1.
+  const aFixed = mat(mu, cx(-1,0), cx(1,0), cx(0,0));   // det = 0 - (-1) = 1 ✓, tr = μ ✓
+  const b = mat(cx(1,0), tau, cx(0,0), cx(1,0));        // det = 1, tr = 2 (parabolic)
+  return {a: aFixed, b};
+}
+
+function preset_apollonian(){
+  // Classical: a, b both parabolic, generating Apollonian gasket.
+  // The IP "Apollonian" group: a = [[1,0],[-2i,1]], b = [[1-i, 1],[1, 1+i]]
+  // det(a) = 1, tr(a) = 2 (parabolic). det(b) = (1-i)(1+i) - 1·1 = 2 - 1 = 1 ✓
+  const a = mat(cx(1,0), cx(0,0), cx(0,-2), cx(1,0));
+  const b = mat(cx(1,-1), cx(1,0), cx(1,0), cx(1,1));
+  return {a, b, viewRadius: 2.0, viewCenter: cx(0, 0)};
+}
+
+function preset_maskit(){
+  // μ = 1.91 + 0.05 i  — just inside Maskit slice boundary, famous Jordan-curve limit set
+  const {a, b} = maskitPair(cx(1.91, 0.05), cx(2,0));
+  return {a, b, viewRadius: 3.0, viewCenter: cx(0, 0)};
+}
+
+function preset_quasifuchsian(){
+  // Further from boundary → smoother fractal Jordan curve
+  const {a, b} = maskitPair(cx(1.65, 0.6), cx(2,0));
+  return {a, b, viewRadius: 3.5, viewCenter: cx(0, 0.6)};
+}
+
+function preset_cusp(){
+  // μ = 2 (parabolic): the famous cusp group, limit set has cusps
+  const {a, b} = maskitPair(cx(2, 0), cx(2,0));
+  return {a, b, viewRadius: 3.0, viewCenter: cx(0, 0)};
+}
+
+function preset_schottky(){
+  // Large |μ| → both generators loxodromic, limit set is a Cantor set
+  const {a, b} = maskitPair(cx(0, 2.5), cx(2,0));
+  return {a, b, viewRadius: 3.5, viewCenter: cx(0, 0)};
+}
+
+const PRESETS = {
+  apollonian: preset_apollonian,
+  maskit: preset_maskit,
+  quasifuchsian: preset_quasifuchsian,
+  cusp: preset_cusp,
+  schottky: preset_schottky,
+};
+
+// ====== Canvas ======
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+let viewScale = 200, viewCx = 0, viewCy = 0;
+
+function setView(G){
+  viewScale = Math.min(W, H) / (2 * G.viewRadius);
+  viewCx = G.viewCenter.re;
+  viewCy = G.viewCenter.im;
+}
+
+function toPixel(x,y){
+  return [(x - viewCx) * viewScale + W/2, -(y - viewCy) * viewScale + H/2];
+}
+
+function strokeCircle(circ, color, lw){
+  if (!circ || !isFinite(circ.r)) return false;
+  const [px, py] = toPixel(circ.cx, circ.cy);
+  const pr = circ.r * viewScale;
+  if (pr < 0.4 || pr > 4000) return false;
+  if (px+pr < -5 || px-pr > W+5 || py+pr < -5 || py-pr > H+5) return false;
+  ctx.beginPath();
+  ctx.arc(px, py, pr, 0, 2*Math.PI);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+  return true;
+}
+
+function drawPoint(z, color){
+  if (!z || !isFinite(z.re) || !isFinite(z.im)) return false;
+  const [px, py] = toPixel(z.re, z.im);
+  if (px < -2 || px > W+2 || py < -2 || py > H+2) return false;
+  ctx.fillStyle = color;
+  ctx.fillRect(px - 0.5, py - 0.5, 1.3, 1.3);
+  return true;
+}
+
+// ====== BFS ======
+const INV = [1,0,3,2];
+let state = null;
+
+function formatComplex(z){
+  if (!z) return "—";
+  const r = z.re.toFixed(2);
+  const i = z.im.toFixed(2);
+  if (Math.abs(z.im) < 0.005) return r;
+  return `${r}${z.im >= 0 ? '+' : ''}${i}i`;
+}
+
+function initBFS(name){
+  const G = PRESETS[name]();
+  setView(G);
+  const Gens = [G.a, mInv(G.a), G.b, mInv(G.b)];
+
+  // Show traces
+  document.getElementById('trA').textContent = formatComplex(trace(G.a));
+  document.getElementById('trB').textContent = formatComplex(trace(G.b));
+
+  const queue = [];
+  for (let g = 0; g < 4; g++){
+    queue.push({mat: Gens[g], last: g, depth: 1});
+  }
+  state = {
+    G, Gens, queue,
+    visited: 0, leaves: 0, pruned: 0,
+    maxDepth: parseInt(document.getElementById('depth').value),
+    minPx: parseFloat(document.getElementById('minr').value),
+    finished: false, timer: null,
+  };
+}
+
+function clearCanvas(){
+  ctx.fillStyle = '#06060c';
+  ctx.fillRect(0, 0, W, H);
+}
+
+function bfsStep(budget){
+  if (!state || state.finished) return;
+  let ops = 0;
+  const QUEUE_CAP = 300000;
+  while (ops < budget && state.queue.length > 0){
+    const node = state.queue.shift();
+    state.visited++; ops++;
+
+    const ic = isoCircle(node.mat);
+    const pr = ic ? ic.r * viewScale : Infinity;
+
+    // Always draw isometric circle if visible — thinner & fainter than before
+    if (ic && pr >= 0.6){
+      const fade = Math.max(0.025, Math.min(0.18, 1.2 / Math.sqrt(pr + 1)));
+      strokeCircle(ic, `rgba(120,160,220,${fade})`, 0.3);
+    }
+
+    // Plot fixed points of EVERY visited word — they all lie on (or near) Λ(Γ).
+    // This means the limit set fills in even when BFS doesn't reach the leaves.
+    const fps = fixedPoints(node.mat);
+    for (const p of fps) drawPoint(p, '#f0c050');
+
+    // Prune when disk too small: every descendant lies inside I(w), so smaller than ε
+    if (pr < state.minPx){
+      state.pruned++;
+      continue;
+    }
+
+    // Reached target depth
+    if (node.depth >= state.maxDepth){
+      state.leaves++;
+      continue;
+    }
+
+    if (state.queue.length > QUEUE_CAP){ state.pruned++; continue; }
+
+    for (let g = 0; g < 4; g++){
+      if (g === INV[node.last]) continue;
+      const M = mMul(node.mat, state.Gens[g]);
+      state.queue.push({mat: M, last: g, depth: node.depth + 1});
+    }
+  }
+  if (state.queue.length === 0) state.finished = true;
+  updateStats();
+}
+
+function updateStats(){
+  document.getElementById('qLen').textContent = state.queue.length;
+  document.getElementById('visLen').textContent = state.visited;
+  document.getElementById('leaves').textContent = state.leaves;
+  document.getElementById('pruned').textContent = state.pruned;
+}
+
+// ====== UI ======
+const depthEl = document.getElementById('depth');
+const depthVal = document.getElementById('depthVal');
+const minrEl = document.getElementById('minr');
+const minrVal = document.getElementById('minrVal');
+const presetEl = document.getElementById('preset');
+
+depthEl.oninput = () => depthVal.textContent = depthEl.value;
+minrEl.oninput  = () => minrVal.textContent  = minrEl.value;
+
+function reset(){
+  if (state && state.timer){ clearInterval(state.timer); state.timer = null; }
+  initBFS(presetEl.value);
+  clearCanvas();
+  updateStats();
+}
+
+function run(){
+  if (!state || state.finished) reset();
+  if (state.timer) return;
+  state.timer = setInterval(() => {
+    bfsStep(120);
+    if (state.finished){ clearInterval(state.timer); state.timer = null; }
+  }, 16);
+}
+
+function pause(){
+  if (state && state.timer){ clearInterval(state.timer); state.timer = null; }
+}
+
+document.getElementById('run').onclick = run;
+document.getElementById('pause').onclick = pause;
+document.getElementById('reset').onclick = reset;
+presetEl.onchange = reset;
+depthEl.onchange = reset;
+minrEl.onchange = reset;
+
+reset();
+</script>
+</body>
+</html>
