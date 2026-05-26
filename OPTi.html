@@ -333,7 +333,6 @@
 // ====================================================================
 //   OPTi — Web Port
 //   Port of the core mathematical routines from PTDraftsman.cpp
-//   and PTPSDraftsman.cpp (Masaaki Wada, 1998–2006).
 //
 //   Complex arithmetic, SL(2,ℂ) action, isometric-circle recursion
 //   with the "flip" relation, and a parameter-space discreteness
@@ -367,7 +366,6 @@ const C = {
 const ZERO = {x:0,y:0};
 const ONE  = {x:1,y:0};
 
-// Wada's "axis" function — pvect.h's axis(v1,v2)
 function axisV(v1, v2) {
   const r = Math.sqrt(C.abs(v1) * C.abs(v2));
   const av1 = C.abs(v1), av2 = C.abs(v2);
