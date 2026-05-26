@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dimer Model on Torus</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #04040a;
+    --panel: #0a0a14;
+    --border: #1a1a2e;
+    --accent1: #ffcc33;
+    --accent2: #44aaff;
+    --text: #c8c8d8;
+    --text-dim: #555570;
+    --font: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+    flex-shrink: 0;
+  }
+
+  header h1 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--accent1);
+    text-transform: uppercase;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+
+  .ctrl-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    letter-spacing: 0.05em;
+  }
+
+  .ctrl-group label { white-space: nowrap; }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 90px;
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent2);
+    cursor: pointer;
+  }
+
+  .val-badge {
+    font-size: 11px;
+    color: var(--accent2);
+    min-width: 36px;
+  }
+
+  button {
+    font-family: var(--font);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    padding: 5px 14px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    text-transform: uppercase;
+  }
+  button:hover { border-color: var(--accent1); color: var(--accent1); }
+
+  .info {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hint {
+    position: absolute;
+    bottom: 12px;
+    right: 14px;
+    font-size: 10px;
+    color: var(--text-dim);
+    pointer-events: none;
+    line-height: 1.7;
+    text-align: right;
+  }
+
+  .legend {
+    position: absolute;
+    bottom: 12px;
+    left: 14px;
+    font-size: 10px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .legend-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .legend-line {
+    width: 18px; height: 3px; border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  #loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.1em;
+    pointer-events: none;
+    transition: opacity 0.4s;
+  }
+  #loading.hidden { opacity: 0; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Dimer · Torus</h1>
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>GRID</label>
+      <input type="range" id="grid-n" min="2" max="32" value="8" step="2">
+      <span class="val-badge" id="grid-n-val">8×8</span>
+    </div>
+    <div class="ctrl-group">
+      <label>R/r</label>
+      <input type="range" id="torus-r" min="1.5" max="5" value="2.8" step="0.1">
+      <span class="val-badge" id="torus-r-val">2.8</span>
+    </div>
+    <div class="ctrl-group">
+      <label>OPACITY</label>
+      <input type="range" id="torus-op" min="0" max="50" value="15" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>SPEED</label>
+      <input type="range" id="auto-rot" min="0" max="10" value="2" step="1">
+    </div>
+    <button id="btn-rematch">NEW MATCHING</button>
+    <span class="info" id="match-info"></span>
+  </div>
+</header>
+
+<div id="canvas-wrap">
+  <canvas id="c3d"></canvas>
+  <div id="loading">BUILDING SCENE...</div>
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#eeeeee"></div>
+      <span>A 頂点 (偶)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:#2244ee"></div>
+      <span>B 頂点 (奇)</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#ffcc33"></div>
+      <span>マッチング辺</span>
+    </div>
+    <div class="legend-item">
+      <div class="legend-line" style="background:#44aaff"></div>
+      <span>非マッチング辺</span>
+    </div>
+  </div>
+  <div class="hint">
+    Drag: rotate<br>
+    Scroll: zoom<br>
+    Shift+drag: pan
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  let N = 8, torusR = 2.8, torusOp = 0.15, autoSpeed = 2;
+  let buildPending = false;
+
+  const wrap = document.getElementById('canvas-wrap');
+  const canvas = document.getElementById('c3d');
+  const loading = document.getElementById('loading');
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.setSize(wrap.clientWidth, wrap.clientHeight);
+  renderer.setClearColor(0x04040a, 1);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth / wrap.clientHeight, 0.01, 200);
+  camera.position.set(0, 0, 8);
+
+  scene.add(new THREE.AmbientLight(0x7788aa, 1.2));
+  const dl1 = new THREE.DirectionalLight(0xffffff, 1.0); dl1.position.set(6, 9, 6); scene.add(dl1);
+  const dl2 = new THREE.DirectionalLight(0x3355ff, 0.6); dl2.position.set(-6, -4, -6); scene.add(dl2);
+
+  const group = new THREE.Group();
+  scene.add(group);
+
+  // Orbit
+  let isDrag = false, isShift = false;
+  let px = 0, py = 0;
+  let rotX = 0.35, rotY = 0.55, zoom = 8;
+  let panX = 0, panY = 0;
+
+  canvas.addEventListener('mousedown', e => { isDrag = true; px = e.clientX; py = e.clientY; isShift = e.shiftKey; });
+  window.addEventListener('mousemove', e => {
+    if (!isDrag) return;
+    const dx = e.clientX - px, dy = e.clientY - py;
+    if (isShift) { panX += dx * 0.005; panY -= dy * 0.005; }
+    else { rotY += dx * 0.01; rotX += dy * 0.01; }
+    px = e.clientX; py = e.clientY;
+  });
+  window.addEventListener('mouseup', () => isDrag = false);
+  canvas.addEventListener('wheel', e => { zoom = Math.max(2, Math.min(20, zoom + e.deltaY * 0.01)); e.preventDefault(); }, { passive: false });
+
+  canvas.addEventListener('touchstart', e => { isDrag = true; px = e.touches[0].clientX; py = e.touches[0].clientY; }, { passive: true });
+  canvas.addEventListener('touchmove', e => {
+    if (!isDrag) return;
+    rotY += (e.touches[0].clientX - px) * 0.01;
+    rotX += (e.touches[0].clientY - py) * 0.01;
+    px = e.touches[0].clientX; py = e.touches[0].clientY;
+    e.preventDefault();
+  }, { passive: false });
+  canvas.addEventListener('touchend', () => isDrag = false);
+
+  // Torus UV → 3D
+  function tp(u, v, R, r) {
+    const th = u * Math.PI * 2, ph = v * Math.PI * 2;
+    return new THREE.Vector3(
+      (R + r * Math.cos(ph)) * Math.cos(th),
+      (R + r * Math.cos(ph)) * Math.sin(th),
+      r * Math.sin(ph)
+    );
+  }
+
+  function edgePts(u0, v0, u1, v1, R, r, steps) {
+    let du = u1 - u0, dv = v1 - v0;
+    if (du > 0.5) du -= 1; if (du < -0.5) du += 1;
+    if (dv > 0.5) dv -= 1; if (dv < -0.5) dv += 1;
+    const pts = [];
+    for (let t = 0; t <= steps; t++) {
+      const s = t / steps;
+      pts.push(tp(u0 + du * s, v0 + dv * s, R, r));
+    }
+    return pts;
+  }
+
+  function makeTube(pts, radius, color, emissive) {
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const segs = Math.max(4, Math.min(16, Math.floor(20 / (N / 4))));
+    return new THREE.Mesh(
+      new THREE.TubeGeometry(curve, segs, radius, 5, false),
+      new THREE.MeshPhongMaterial({ color, emissive: emissive || 0x000000, shininess: 60 })
+    );
+  }
+
+  function computeMatching(n, allEdges) {
+    const edges = [...allEdges];
+    for (let k = edges.length - 1; k > 0; k--) {
+      const m = Math.floor(Math.random() * (k + 1));
+      [edges[k], edges[m]] = [edges[m], edges[k]];
+    }
+    const matched = new Set(), chosen = [];
+    for (const e of edges) {
+      const a = e[0] * n + e[1], b = e[2] * n + e[3];
+      if (!matched.has(a) && !matched.has(b)) { matched.add(a); matched.add(b); chosen.push(e); }
+    }
+    if (matched.size < n * n) return computeMatching(n, allEdges);
+    const s = new Set();
+    for (const e of chosen) {
+      const a = Math.min(e[0] * n + e[1], e[2] * n + e[3]);
+      const b = Math.max(e[0] * n + e[1], e[2] * n + e[3]);
+      s.add(a + '_' + b);
+    }
+    return s;
+  }
+
+  function buildScene() {
+    loading.classList.remove('hidden');
+
+    // defer so loading text renders
+    setTimeout(() => {
+      while (group.children.length) group.remove(group.children[0]);
+
+      const n = N, R = torusR, r = torusR * 0.38;
+
+      // Torus surface
+      const torusSeg = n <= 8 ? 96 : n <= 16 ? 64 : 48;
+      group.add(new THREE.Mesh(
+        new THREE.TorusGeometry(R, r, torusSeg, torusSeg * 2),
+        new THREE.MeshPhongMaterial({
+          color: 0x0d0d2a, transparent: true,
+          opacity: torusOp, side: THREE.DoubleSide, shininess: 10
+        })
+      ));
+
+      // Build all bipartite edges (異色間, 重複なし)
+      const allEdges = [];
+      const seen = new Set();
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+        for (const [di, dj] of [[0,1],[0,-1],[1,0],[-1,0]]) {
+          const ni = ((i + di) % n + n) % n, nj = ((j + dj) % n + n) % n;
+          if ((i + j) % 2 === (ni + nj) % 2) continue; // same color, skip
+          const a = Math.min(i * n + j, ni * n + nj), b = Math.max(i * n + j, ni * n + nj);
+          const key = a + '_' + b;
+          if (!seen.has(key)) { seen.add(key); allEdges.push([i, j, ni, nj]); }
+        }
+      }
+
+      const matchSet = computeMatching(n, allEdges);
+
+      // Tube radius scales with grid size
+      const rMatch = Math.max(0.008, 0.032 * (4 / n));
+      const rEdge  = Math.max(0.004, 0.014 * (4 / n));
+      const edgeSteps = n <= 8 ? 20 : n <= 16 ? 12 : 6;
+
+      for (const [i, j, ni, nj] of allEdges) {
+        const a = Math.min(i * n + j, ni * n + nj), b = Math.max(i * n + j, ni * n + nj);
+        const isMatch = matchSet.has(a + '_' + b);
+        const pts = edgePts(j / n, i / n, nj / n, ni / n, R, r, edgeSteps);
+        group.add(makeTube(pts, isMatch ? rMatch : rEdge,
+          isMatch ? 0xffcc33 : 0x44aaff,
+          isMatch ? 0x996600 : 0x112244));
+      }
+
+      // Vertices — only draw if N <= 20 (too many otherwise)
+      if (n <= 20) {
+        const vRadius = Math.max(0.018, 0.075 * (4 / n));
+        const vGeo = new THREE.SphereGeometry(vRadius, n <= 12 ? 10 : 7, n <= 12 ? 8 : 5);
+        for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+          const isA = (i + j) % 2 === 0;
+          const mesh = new THREE.Mesh(vGeo,
+            new THREE.MeshPhongMaterial({
+              color: isA ? 0xeeeeee : 0x2244ee,
+              emissive: isA ? 0x555555 : 0x112288,
+              shininess: 100
+            })
+          );
+          mesh.position.copy(tp(j / n, i / n, R, r));
+          group.add(mesh);
+        }
+      }
+
+      document.getElementById('match-info').textContent =
+        `${n}×${n}  /  全辺: ${allEdges.length}  /  matching: ${n * n / 2}`;
+
+      loading.classList.add('hidden');
+    }, 30);
+  }
+
+  // Controls
+  function debuild() {
+    if (buildPending) return;
+    buildPending = true;
+    setTimeout(() => { buildPending = false; buildScene(); }, 300);
+  }
+
+  document.getElementById('grid-n').addEventListener('input', function () {
+    N = +this.value;
+    // force even
+    if (N % 2 !== 0) N = Math.max(2, N - 1);
+    document.getElementById('grid-n-val').textContent = N + '×' + N;
+    debuild();
+  });
+  document.getElementById('torus-r').addEventListener('input', function () {
+    torusR = +this.value;
+    document.getElementById('torus-r-val').textContent = torusR.toFixed(1);
+    debuild();
+  });
+  document.getElementById('torus-op').addEventListener('input', function () {
+    torusOp = this.value / 100;
+    // just update material opacity live
+    group.children.forEach(c => {
+      if (c.isMesh && c.material.transparent && c.material.side === THREE.DoubleSide)
+        c.material.opacity = torusOp;
+    });
+  });
+  document.getElementById('auto-rot').addEventListener('input', function () {
+    autoSpeed = +this.value;
+  });
+  document.getElementById('btn-rematch').addEventListener('click', buildScene);
+
+  window.addEventListener('resize', () => {
+    const W = wrap.clientWidth, H = wrap.clientHeight;
+    renderer.setSize(W, H);
+    camera.aspect = W / H;
+    camera.updateProjectionMatrix();
+  });
+
+  // Animate
+  let autoRotY = 0;
+  function animate() {
+    requestAnimationFrame(animate);
+    if (!isDrag) autoRotY += autoSpeed * 0.0003;
+    group.rotation.x = rotX;
+    group.rotation.y = rotY + autoRotY;
+    group.position.set(panX, panY, 0);
+    camera.position.z = zoom;
+    camera.updateProjectionMatrix();
+    renderer.render(scene, camera);
+  }
+
+  buildScene();
+  animate();
+})();
+</script>
+</body>
+</html>
