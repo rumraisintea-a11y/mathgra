@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>OPTi — Once-Punctured Torus Groups (Web Port)</title>
+<meta name="viewport" content="width=1200">
+<style>
+  :root {
+    --bg: #14131a;
+    --panel: #1b1a23;
+    --panel-2: #232231;
+    --line: #2c2b3a;
+    --ink: #e8e6f0;
+    --ink-dim: #8c8aa3;
+    --accent: #c79b53;
+    --accent-2: #6b8eaf;
+    --danger: #c45a5a;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino Linotype", Palatino, "Hoefler Text", "Times New Roman", serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+  header {
+    display: flex; align-items: baseline; gap: 18px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #1a1924, #14131a);
+  }
+  header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+  }
+  header h1 em {
+    font-style: italic;
+    color: var(--accent);
+  }
+  header .sub {
+    color: var(--ink-dim);
+    font-style: italic;
+    font-size: 12px;
+  }
+  header .credit {
+    margin-left: auto;
+    color: var(--ink-dim);
+    font-size: 11px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 240px 1fr 1fr;
+    height: calc(100vh - 47px);
+    gap: 0;
+  }
+
+  /* ---------- sidebar ---------- */
+  aside.controls {
+    background: var(--panel);
+    border-right: 1px solid var(--line);
+    overflow-y: auto;
+    padding: 14px 14px 30px;
+  }
+  aside.controls h2 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.18em;
+    color: var(--ink-dim);
+    margin: 18px 0 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--line);
+    font-weight: 500;
+  }
+  aside.controls h2:first-child { margin-top: 0; }
+  .row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 8px; margin: 6px 0;
+  }
+  .row label { color: var(--ink-dim); font-size: 12px; }
+  .row .val { font-variant-numeric: tabular-nums; color: var(--ink); font-size: 11px; }
+  select, input[type="number"] {
+    width: 100%;
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-family: inherit;
+    font-size: 12px;
+  }
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+  .check {
+    display: flex; align-items: center; gap: 8px;
+    cursor: pointer; user-select: none;
+    padding: 3px 0;
+    color: var(--ink);
+    font-size: 12px;
+  }
+  .check input { accent-color: var(--accent); }
+  button {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-family: inherit;
+    font-size: 11px;
+    cursor: pointer;
+  }
+  button:hover { background: #2c2b3d; border-color: #404054; }
+  button.primary {
+    background: var(--accent); color: #1a1924; border-color: var(--accent);
+  }
+  button.primary:hover { background: #d8ac63; }
+  .btn-row { display: flex; gap: 4px; }
+  .btn-row button { flex: 1; }
+
+  /* ---------- canvas areas ---------- */
+  .pane {
+    position: relative;
+    background: #f6f3ec;
+    overflow: hidden;
+  }
+  .pane.dark { background: #1a1924; }
+  .pane + .pane { border-left: 1px solid var(--line); }
+  .pane canvas {
+    display: block;
+    width: 100%; height: 100%;
+    cursor: crosshair;
+  }
+  .pane .label {
+    position: absolute;
+    top: 8px; left: 12px;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(40,30,20,0.55);
+    pointer-events: none;
+    font-weight: 600;
+  }
+  .pane.dark .label { color: rgba(232,230,240,0.5); }
+  .pane .coord {
+    position: absolute;
+    bottom: 6px; right: 10px;
+    font-size: 10px;
+    font-variant-numeric: tabular-nums;
+    color: rgba(40,30,20,0.55);
+    pointer-events: none;
+    font-family: "SF Mono", Menlo, Monaco, monospace;
+  }
+  .pane.dark .coord { color: rgba(232,230,240,0.5); }
+  .pane .progress {
+    position: absolute;
+    top: 8px; right: 12px;
+    font-size: 10px;
+    color: rgba(40,30,20,0.6);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    font-family: "SF Mono", Menlo, Monaco, monospace;
+  }
+  .pane.dark .progress { color: rgba(232,230,240,0.6); }
+  .legend {
+    position: absolute;
+    bottom: 8px; left: 12px;
+    font-size: 10px;
+    color: rgba(40,30,20,0.55);
+    pointer-events: none;
+    line-height: 1.5;
+  }
+  .pane.dark .legend { color: rgba(232,230,240,0.55); }
+  .legend .sw { display: inline-block; width: 10px; height: 10px; vertical-align: middle; margin-right: 4px; border: 1px solid rgba(0,0,0,0.2); }
+
+  .footer {
+    position: absolute;
+    bottom: 4px; left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: rgba(40,30,20,0.4);
+    font-style: italic;
+    pointer-events: none;
+  }
+  .pane.dark .footer { color: rgba(232,230,240,0.35); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><em>OPTi</em> — Once-Punctured Torus Groups</h1>
+  <span class="sub">a web port of Masaaki Wada's Mac OS application (v3.61)</span>
+  <span class="credit">Original © 1998–2006 Masaaki Wada</span>
+</header>
+
+<div class="layout">
+
+  <aside class="controls">
+
+    <h2>Slice</h2>
+    <select id="slice">
+      <option value="QF">Quasi-Fuchsian</option>
+      <option value="Maskit" selected>Maskit</option>
+      <option value="Earle">Earle</option>
+      <option value="Linear">Linear</option>
+      <option value="Riley">Riley</option>
+    </select>
+    <div class="row" style="margin-top:8px">
+      <label>z₁ real</label>
+      <span class="val" id="z1r-val">0.256</span>
+    </div>
+    <input type="range" id="z1r" min="-1" max="2" step="0.001" value="0.256">
+    <div class="row">
+      <label>z₁ imag</label>
+      <span class="val" id="z1i-val">0.497</span>
+    </div>
+    <input type="range" id="z1i" min="-1.5" max="1.5" step="0.001" value="0.497">
+    <div id="z2row" style="display:none">
+      <div class="row">
+        <label>z₂ real</label>
+        <span class="val" id="z2r-val">0.667</span>
+      </div>
+      <input type="range" id="z2r" min="-2" max="3" step="0.001" value="0.667">
+      <div class="row">
+        <label>z₂ imag</label>
+        <span class="val" id="z2i-val">0.000</span>
+      </div>
+      <input type="range" id="z2i" min="-2" max="3" step="0.001" value="0">
+    </div>
+
+    <h2>Limit Set</h2>
+    <label class="check"><input type="checkbox" id="ls" checked> Show limit set</label>
+    <label class="check"><input type="checkbox" id="ic" checked> Isometric circles</label>
+    <label class="check"><input type="checkbox" id="icax"> IC axes</label>
+    <div class="row" style="margin-top:6px">
+      <label>LS quality</label>
+      <span class="val" id="lsq-val">medium</span>
+    </div>
+    <select id="lsq">
+      <option value="2.0">coarse</option>
+      <option value="1.0" selected>medium</option>
+      <option value="0.5">fine</option>
+      <option value="0.25">finest</option>
+    </select>
+    <div class="row" style="margin-top:6px">
+      <label>IC depth</label>
+      <span class="val" id="iclev-val">15</span>
+    </div>
+    <input type="range" id="iclev" min="0" max="40" step="1" value="15">
+
+    <h2>Parameter Space</h2>
+    <label class="check"><input type="checkbox" id="ps" checked> Compute PS</label>
+    <div class="row" style="margin-top:6px">
+      <label>resolution</label>
+      <span class="val" id="psres-val">128</span>
+    </div>
+    <select id="psres">
+      <option value="64">64 (fast)</option>
+      <option value="128" selected>128</option>
+      <option value="192">192</option>
+      <option value="256">256 (slow)</option>
+    </select>
+    <div class="row" style="margin-top:6px">
+      <label>depth</label>
+      <span class="val" id="psd-val">100</span>
+    </div>
+    <input type="range" id="psd" min="20" max="500" step="10" value="100">
+    <div class="row" style="margin-top:6px">
+      <label>δ (JI threshold)</label>
+      <span class="val" id="psdel-val">100</span>
+    </div>
+    <input type="range" id="psdel" min="10" max="1000" step="10" value="100">
+
+    <h2>View</h2>
+    <div class="btn-row">
+      <button id="home">Home</button>
+      <button id="zoomin">Zoom +</button>
+      <button id="zoomout">Zoom −</button>
+    </div>
+    <p style="font-size:11px;color:var(--ink-dim);margin-top:10px;line-height:1.55">
+      Drag on left pane to pan the limit-set view; click on the right pane to set z₁ (or drag — recomputes on release).
+      Mouse wheel zooms each pane independently.
+    </p>
+
+    <h2>Demo Presets</h2>
+    <div class="btn-row">
+      <button data-preset="maskit-cusp">Maskit cusp</button>
+      <button data-preset="qf-classic">QF classic</button>
+    </div>
+    <div class="btn-row" style="margin-top:4px">
+      <button data-preset="earle-real">Earle</button>
+      <button data-preset="riley">Riley</button>
+    </div>
+  </aside>
+
+  <!-- left pane: limit set -->
+  <div class="pane" id="lspane">
+    <canvas id="lscv"></canvas>
+    <div class="label">limit set · ℂ̂</div>
+    <div class="progress" id="lsprog"></div>
+    <div class="coord" id="lscoord"></div>
+    <div class="legend">
+      <span class="sw" style="background:#e69999"></span>α
+      <span class="sw" style="background:#99cc99"></span>β
+      <span class="sw" style="background:#9999e6"></span>γ
+    </div>
+    <div class="footer">drag to pan · wheel to zoom</div>
+  </div>
+
+  <!-- right pane: parameter space -->
+  <div class="pane" id="pspane">
+    <canvas id="pscv"></canvas>
+    <div class="label">parameter space · z₁ ∈ ℂ</div>
+    <div class="progress" id="psprog"></div>
+    <div class="coord" id="pscoord"></div>
+    <div class="legend">
+      <span class="sw" style="background:#000"></span>indiscrete
+      <span class="sw" style="background:#888"></span>boundary
+      <span class="sw" style="background:#e0c080"></span>discrete (mLa/mLb/mLx)
+    </div>
+    <div class="footer">click to set z₁ · wheel to zoom</div>
+  </div>
+
+</div>
+
+<script>
+// ====================================================================
+//   OPTi — Web Port
+//   Port of the core mathematical routines from PTDraftsman.cpp
+//   and PTPSDraftsman.cpp (Masaaki Wada, 1998–2006).
+//
+//   Complex arithmetic, SL(2,ℂ) action, isometric-circle recursion
+//   with the "flip" relation, and a parameter-space discreteness
+//   probe based on Jørgensen's inequality.
+// ====================================================================
+
+// -------- complex numbers as {x,y} --------
+const C = {
+  add: (a,b) => ({x:a.x+b.x, y:a.y+b.y}),
+  sub: (a,b) => ({x:a.x-b.x, y:a.y-b.y}),
+  mul: (a,b) => ({x:a.x*b.x - a.y*b.y, y:a.x*b.y + a.y*b.x}),
+  scl: (a,t) => ({x:a.x*t, y:a.y*t}),
+  neg: (a)   => ({x:-a.x, y:-a.y}),
+  conj:(a)   => ({x:a.x, y:-a.y}),
+  norm:(a)   => a.x*a.x + a.y*a.y,
+  abs: (a)   => Math.hypot(a.x, a.y),
+  inv: (a)   => { const n=a.x*a.x+a.y*a.y; return {x:a.x/n, y:-a.y/n}; },
+  div: (a,b) => { const n=b.x*b.x+b.y*b.y; return {x:(a.x*b.x+a.y*b.y)/n, y:(a.y*b.x-a.x*b.y)/n}; },
+  sqrt:(v) => {
+    const a = Math.hypot(v.x, v.y);
+    if (v.y === 0 && v.x < 0) return {x:0, y:Math.sqrt(a)};
+    let r = {x:v.x + a, y:v.y};
+    const m = Math.hypot(r.x, r.y);
+    if (m === 0) return {x:0,y:0};
+    return {x:r.x/m*Math.sqrt(a), y:r.y/m*Math.sqrt(a)};
+  },
+  rot90:(v) => ({x:-v.y, y:v.x}),
+  cross:(a,b) => a.x*b.y - a.y*b.x,
+  dot:  (a,b) => a.x*b.x + a.y*b.y,
+};
+const ZERO = {x:0,y:0};
+const ONE  = {x:1,y:0};
+
+// Wada's "axis" function — pvect.h's axis(v1,v2)
+function axisV(v1, v2) {
+  const r = Math.sqrt(C.abs(v1) * C.abs(v2));
+  const av1 = C.abs(v1), av2 = C.abs(v2);
+  if (av1 === 0 || av2 === 0) return v1;
+  const n1 = {x:v1.x/av1, y:v1.y/av1};
+  const n2 = {x:v2.x/av2, y:v2.y/av2};
+  const sum = C.rot90({x:n1.x+n2.x, y:n1.y+n2.y});
+  const s = Math.hypot(sum.x, sum.y);
+  let dir = s === 0 ? v1 : {x:sum.x/s, y:sum.y/s};
+  const dn = Math.hypot(dir.x, dir.y);
+  if (dn === 0) return v1;
+  return {x:dir.x/dn*r, y:dir.y/dn*r};
+}
+
+// cyclic — PTData::Z(i): z[i mod 3] + (i div 3)
+function cyclicZ(z, i) {
+  let q = Math.floor(i/3), r = i - 3*q;
+  if (r < 0) { q--; r += 3; }
+  return {x: z[r].x + q, y: z[r].y};
+}
+
+// flip — PTData::flip
+function flipZ(oldz, i) {
+  const z0 = oldz[0], z1 = oldz[1], z2 = oldz[2];
+  const out = [null,null,null];
+  if (i === 0) {
+    out[0] = C.sub(z2, ONE);
+    out[1] = z1;
+    const num = C.mul(C.sub(z0, z1), C.sub(z2, z1));
+    const den = C.sub(C.sub(z2, ONE), z1);
+    out[2] = C.add(z1, C.div(num, den));
+  } else if (i === 1) {
+    out[0] = z0;
+    out[1] = z2;
+    const num = C.mul(C.sub(z1, z2), C.sub(C.add(z0, ONE), z2));
+    const den = C.sub(z0, z2);
+    out[2] = C.add(z2, C.div(num, den));
+  } else {
+    const z0p = C.add(z0, ONE);
+    out[0] = z1;
+    out[1] = z0p;
+    const num = C.mul(C.sub(z2, z0p), C.sub(z1, z0));
+    const den = C.sub(z1, z0p);
+    out[2] = C.add(z0p, C.div(num, den));
+  }
+  return out;
+}
+
+// ====================================================================
+//   State
+// ====================================================================
+const State = {
+  kind: 'Maskit',
+  z1: {x: 0.256, y: 0.497},   // = Sample/Parker/Maskit12345678 (known discrete point)
+  z2: {x: 2/3, y: 0},
+  linearK: {x:1, y:0},
+  // limit set view — PTData::Home() defaults
+  ls: { xmin: -0.3, xmax: 1.3, ymin: -0.8, ymax: 0.8 },
+  // parameter space view — PTData::PSHome() defaults
+  ps: { xmin: -0.3, xmax: 1.3, ymin: -0.8, ymax: 0.8 },
+  showLS: true,
+  showIC: true,
+  showICAxes: false,
+  showPS: true,
+  lsDelta: 1.0,
+  psDelta: 100.0,    // PTData::mPSDelta default
+  icLevel: 15,
+  psRes: 128,
+  psDepth: 100,      // PTData::mPSDepth default (= "medium")
+};
+
+// Compute z2 from z1 according to slice
+function z2for(kind, z1, linearK, z2QF) {
+  switch (kind) {
+    case 'QF':     return z2QF;
+    case 'Earle':  return C.sub(ONE, z1);
+    case 'Maskit': return C.sub(ONE, C.div({x:0.25,y:0}, z1));
+    case 'Linear': {
+      const k2 = C.mul(linearK, linearK);
+      return C.sub(ONE, C.div(ONE, C.mul(k2, z1)));
+    }
+    case 'Riley':  return ZERO;
+  }
+}
+
+function currentZ() {
+  if (State.kind === 'Riley') {
+    return [ZERO, State.z1, ZERO];
+  }
+  const z2 = z2for(State.kind, State.z1, State.linearK, State.z2);
+  // z0 = 0, z1, z2 with sum constraint: z0+z1+z2-1=0 for the canonical
+  // form? Actually PTData sets z0 = 0 and lets z1,z2 vary; the "trace
+  // equation" tr(A)·tr(B)·tr(AB) = tr(A)² + tr(B)² + tr(AB)² with the
+  // identification a_i = z_i+1 - z_i is satisfied by construction.
+  const z0 = C.sub(C.sub(ONE, z1FromCanonical()), z2_canonical(z2));
+  // Wada's original initializes z0 such that z[0]+z[1]+z[2] is... let's
+  // just follow PTData::PTData() which sets z0=0 and only modifies z1,z2.
+  return [ZERO, State.z1, z2];
+}
+// dummy helpers (kept for symmetry); actual logic above:
+function z1FromCanonical(){return State.z1;}
+function z2_canonical(z2){return z2;}
+
+// ====================================================================
+//   Canvas setup with DPR
+// ====================================================================
+function setupCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = cv.parentElement.getBoundingClientRect();
+  cv.width  = Math.floor(rect.width * dpr);
+  cv.height = Math.floor(rect.height * dpr);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return {ctx, w:rect.width, h:rect.height, dpr};
+}
+
+// World↔pixel transforms
+function makeXform(view, w, h) {
+  const sx = w / (view.xmax - view.xmin);
+  const sy = h / (view.ymax - view.ymin);
+  const s = Math.min(sx, sy);
+  // center
+  const cx = w/2, cy = h/2;
+  const wx = (view.xmin + view.xmax)/2;
+  const wy = (view.ymin + view.ymax)/2;
+  return {
+    toPx: (x,y) => [cx + (x - wx) * s, cy - (y - wy) * s],
+    toW:  (px,py) => [wx + (px - cx)/s, wy - (py - cy)/s],
+    s: s,
+    pixel: 1/s,
+  };
+}
+
+// ====================================================================
+//   Limit Set rendering
+// ====================================================================
+const lscv = document.getElementById('lscv');
+const pscv = document.getElementById('pscv');
+
+let lsState = {ctx:null, w:0, h:0, xf:null};
+
+function clearLS() {
+  const {ctx, w, h} = setupCanvas(lscv);
+  ctx.fillStyle = '#f6f3ec';
+  ctx.fillRect(0,0,w,h);
+  lsState = {ctx, w, h, xf: makeXform(State.ls, w, h)};
+}
+
+// Draw a periodic line (z0 → z1 repeated by integer translates along real axis)
+function drawLineLS(z0, z1, color) {
+  const {ctx, w, h, xf} = lsState;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  let a = z0, b = z1;
+  if (a.x > b.x) { const t = a; a = b; b = t; }
+  const xL = State.ls.xmin, xR = State.ls.xmax;
+  // place copies a+k, b+k so that they intersect the viewport
+  const kStart = Math.ceil(xL - b.x);
+  const kEnd   = Math.ceil(xR - a.x);
+  ctx.beginPath();
+  for (let k = kStart; k <= kEnd; k++) {
+    const [px0, py0] = xf.toPx(a.x + k, a.y);
+    const [px1, py1] = xf.toPx(b.x + k, b.y);
+    ctx.moveTo(px0, py0);
+    ctx.lineTo(px1, py1);
+  }
+  ctx.stroke();
+}
+
+function drawCircleLS(center, radius, color) {
+  const {ctx, xf} = lsState;
+  const xL = State.ls.xmin, xR = State.ls.xmax;
+  const yB = State.ls.ymin, yT = State.ls.ymax;
+  if (center.y + radius < yB || center.y - radius > yT) return;
+  if (radius > 1e4 * xf.pixel) return;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  const kStart = Math.ceil(xL - radius - center.x);
+  const kEnd   = Math.ceil(xR + radius - center.x);
+  for (let k = kStart; k <= kEnd; k++) {
+    const [px, py] = xf.toPx(center.x + k, center.y);
+    const rPx = radius * xf.s;
+    if (rPx < 0.4) continue;
+    ctx.beginPath();
+    ctx.arc(px, py, rPx, 0, Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+// ----- isometric circle recursion (PTIC + ICNewGen) -----
+const IC_COLORS = ['#cc6666', '#669966', '#6666cc'];
+
+function icSetTriple(zs) {
+  // PTIC::Set(zl, z, zr, ci): center = z, axis from neighbor vectors
+  const out = [];
+  for (let i = 0; i < 3; i++) {
+    const zl = cyclicZ(zs, i-1);
+    const z  = cyclicZ(zs, i);
+    const zr = cyclicZ(zs, i+1);
+    const v1 = C.sub(z, zl);
+    const v2 = C.sub(zr, z);
+    const r  = Math.sqrt(C.abs(v1) * C.abs(v2));
+    const av1 = C.abs(v1), av2 = C.abs(v2);
+    let axis;
+    if (av1 === 0 || av2 === 0) {
+      axis = {x: r, y: 0};
+    } else {
+      const sum = C.rot90({x: v1.x/av1 + v2.x/av2, y: v1.y/av1 + v2.y/av2});
+      const s = Math.hypot(sum.x, sum.y);
+      const dir = s === 0 ? v1 : {x:sum.x/s, y:sum.y/s};
+      const dn = Math.hypot(dir.x, dir.y);
+      axis = dn === 0 ? {x:r, y:0} : {x:dir.x/dn*r, y:dir.y/dn*r};
+    }
+    out.push({center: z, axis, cind: i, radius: Math.hypot(axis.x, axis.y)});
+  }
+  return out;
+}
+
+function icNewGen(circs, index) {
+  // PTDraftsman::ICNewGen
+  const z0 = circs[0].center, z1 = circs[1].center, z2 = circs[2].center;
+  const z0p = C.add(z0, ONE), z2m = C.sub(z2, ONE);
+  const out = [null, null, null];
+  let ratio;
+  if (index === 0) {
+    ratio = C.div(C.sub(z2, z1), C.sub(z2m, z1));
+    out[0] = {...circs[2], center: z2m};
+    out[1] = {...circs[1]};
+    const newC = C.add(z1, C.mul(ratio, C.sub(z0, z1)));
+    const newA = C.neg(C.mul(ratio, circs[0].axis));
+    out[2] = {center:newC, axis:newA, cind:circs[0].cind, radius:Math.hypot(newA.x,newA.y)};
+  } else if (index === 1) {
+    ratio = C.div(C.sub(z0p, z2), C.sub(z0, z2));
+    out[0] = {...circs[0]};
+    out[1] = {...circs[2]};
+    const newC = C.add(z2, C.mul(ratio, C.sub(z1, z2)));
+    const newA = C.neg(C.mul(ratio, circs[1].axis));
+    out[2] = {center:newC, axis:newA, cind:circs[1].cind, radius:Math.hypot(newA.x,newA.y)};
+  } else {
+    ratio = C.div(C.sub(z1, z0), C.sub(z1, z0p));
+    out[0] = {...circs[1]};
+    out[1] = {...circs[0], center: z0p};
+    const newC = C.add(z0p, C.mul(ratio, C.sub(z2, z0p)));
+    const newA = C.neg(C.mul(ratio, circs[2].axis));
+    out[2] = {center:newC, axis:newA, cind:circs[2].cind, radius:Math.hypot(newA.x,newA.y)};
+  }
+  return out;
+}
+
+function drawICRecursive() {
+  const z = currentZ();
+  const stack = [icSetTriple(z)];
+  const indexStack = [2];
+  const {xf} = lsState;
+  const pixel = xf.pixel;
+  let drawn = 0;
+  const maxDraws = 50000;
+
+  // draw the three base circles
+  for (let i = 0; i < 3; i++) {
+    drawCircleLS(stack[0][i].center, stack[0][i].radius, IC_COLORS[stack[0][i].cind%3]);
+    if (State.showICAxes) drawAxis(stack[0][i]);
+    drawn++;
+  }
+
+  while (stack.length > 0 && drawn < maxDraws) {
+    const level = stack.length - 1;
+    if (level >= State.icLevel) {
+      stack.pop();
+      indexStack.pop();
+      continue;
+    }
+    let ind = indexStack[indexStack.length - 1];
+    if (ind < 0) {
+      stack.pop();
+      indexStack.pop();
+      continue;
+    }
+    indexStack[indexStack.length - 1]--;
+    const circs = stack[level];
+    const z0 = circs[0].center, z1 = circs[1].center, z2 = circs[2].center;
+    const delta = 0.01 * pixel;
+    let valid = false;
+    if (ind === 2) {
+      if (C.abs(C.sub(z0, z1)) > delta && C.abs(C.sub(C.add(z0, ONE), z1)) > delta) valid = true;
+    } else if (ind === 1) {
+      if (C.abs(C.sub(z0, z2)) > delta && C.abs(C.sub(C.add(z0, ONE), z2)) > delta) valid = true;
+    } else {
+      if (C.abs(C.sub(z1, z2)) > delta && C.abs(C.sub(C.add(z1, ONE), z2)) > delta) valid = true;
+    }
+    if (!valid) continue;
+
+    const newCircs = icNewGen(circs, ind);
+    const newR = newCircs[2].radius;
+    if (newR > pixel) {
+      drawCircleLS(newCircs[2].center, newR, IC_COLORS[newCircs[2].cind%3]);
+      if (State.showICAxes) drawAxis(newCircs[2]);
+      drawn++;
+      stack.push(newCircs);
+      indexStack.push(1);
+    }
+  }
+}
+
+function drawAxis(circ) {
+  const {ctx, xf} = lsState;
+  const c = circ.center;
+  const a = circ.axis;
+  const xL = State.ls.xmin, xR = State.ls.xmax;
+  const kStart = Math.ceil(xL - circ.radius - c.x);
+  const kEnd   = Math.ceil(xR + circ.radius - c.x);
+  ctx.strokeStyle = IC_COLORS[circ.cind%3];
+  ctx.lineWidth = 0.5;
+  for (let k = kStart; k <= kEnd; k++) {
+    const [px0,py0] = xf.toPx(c.x + k + a.x, c.y + a.y);
+    const [px1,py1] = xf.toPx(c.x + k - a.x, c.y - a.y);
+    ctx.beginPath();
+    ctx.moveTo(px0,py0);
+    ctx.lineTo(px1,py1);
+    ctx.stroke();
+  }
+}
+
+// ----- Limit set proper: SL(2,ℂ) rotation generators + recursive tracing -----
+// Implements LSInitialize + LSMore (PTDraftsman.cpp)
+
+// SL(2,ℂ) = [a b; c d] where each entry is complex
+function sl2Make(a,b,c,d){return {a,b,c,d};}
+function sl2Apply(g, z){
+  const d = C.add(C.mul(g.c, z), g.d);
+  if (C.norm(d) === 0) return {x: Infinity, y: 0};
+  return C.div(C.add(C.mul(g.a, z), g.b), d);
+}
+function sl2Mul(f, g){
+  return {
+    a: C.add(C.mul(f.a, g.a), C.mul(f.b, g.c)),
+    b: C.add(C.mul(f.a, g.b), C.mul(f.b, g.d)),
+    c: C.add(C.mul(f.c, g.a), C.mul(f.d, g.c)),
+    d: C.add(C.mul(f.c, g.b), C.mul(f.d, g.d)),
+  };
+}
+function sl2Pole(f){
+  if (C.norm(f.c) === 0) return {x: Infinity, y: 0};
+  return C.div(f.a, f.c);
+}
+// Half-turn (Pi rotation) sending z0 ↦ z2 with z1 as fixed center.
+// Formula from sl2c.h: a=z1, b=z0*z2 - z0*z1 - z1*z2, c=1, d=-z1
+function piRotation(z0, z1, z2) {
+  const b = C.sub(C.sub(C.mul(z0,z2), C.mul(z0,z1)), C.mul(z1,z2));
+  return sl2Make(z1, b, ONE, C.neg(z1));
+}
+
+// LSInitialize / LSMore — recursive tent-trace from the limit set algorithm
+function drawLimitSet() {
+  const z = currentZ();
+  // Three half-turn generators
+  const P = piRotation(C.sub(z[2], ONE), z[0], z[1]);
+  const Q = piRotation(z[0], z[1], z[2]);
+  const R = piRotation(z[1], z[2], C.add(z[0], ONE));
+  const poleP = sl2Pole(P);
+  const poleQ = sl2Pole(Q);
+  const poleR = sl2Pole(R);
+  const polePR = sl2Pole(sl2Mul(P, R));
+  const poleRP = C.add(polePR, ONE);
+
+  const {ctx, w, h, xf} = lsState;
+  const pixel = xf.pixel;
+  const eps = 0.1 * pixel;
+  const eps2 = eps * eps;
+  const alpha = 10.0;
+  const deltaPix = State.lsDelta * pixel;
+  const center = {x:(State.ls.xmin+State.ls.xmax)/2, y:(State.ls.ymin+State.ls.ymax)/2};
+
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 0.6;
+
+  // Iterative stack
+  const MAX_DEPTH = 200;
+  const stack = [];
+  stack.push({
+    T: sl2Make(ONE, ZERO, ZERO, ONE),
+    sector: 0,
+    x: 0.0,
+    increasing: true,
+  });
+
+  function lsClose(v0, v1) {
+    let a = C.sub(v0, center);
+    let b = C.sub(v1, center);
+    const t = Math.floor(a.x + 0.5);
+    a.x -= t; b.x -= t;
+    const d = C.sub(a, b);
+    return C.norm(d) < eps2 * (1 + C.norm(a));
+  }
+  function lsOutOfRange(level, vp, v0, v1) {
+    if (level < 3) return false;
+    if (C.abs(C.sub(v0, v1)) > alpha) return true;
+    const dst = Math.max(C.abs(C.sub(v0, vp)), C.abs(C.sub(v1, vp)));
+    const ymn = State.ls.ymin - 10 * dst;
+    if (vp.y < ymn && v0.y < ymn && v1.y < ymn) return true;
+    const ymx = State.ls.ymax + 10 * dst;
+    if (vp.y > ymx && v0.y > ymx && v1.y > ymx) return true;
+    const t = Math.floor(vp.x - center.x + 0.5);
+    const vpx = vp.x - t, v0x = v0.x - t, v1x = v1.x - t;
+    const xmn = State.ls.xmin - 10 * dst;
+    if (vpx < xmn && v0x < xmn && v1x < xmn) return true;
+    const xmx = State.ls.xmax + 10 * dst;
+    if (vpx > xmx && v0x > xmx && v1x > xmx) return true;
+    return false;
+  }
+
+  let iterations = 0;
+  const maxIter = 200000;
+  while (stack.length > 0 && iterations++ < maxIter) {
+    const top = stack[stack.length - 1];
+    const l = stack.length - 1;
+    if (l === 0 && top.x > 0) break;
+
+    const g = top.T;
+    const poleG = sl2Pole(g);
+
+    let v0, v1, nextGen;
+    switch (top.sector) {
+      case 0:
+        v0 = sl2Apply(g, C.add(polePR, {x:top.x, y:0}));
+        v1 = sl2Apply(g, C.add(poleP,  {x:top.x, y:0}));
+        nextGen = P;
+        break;
+      case 1:
+        v0 = sl2Apply(g, C.add(poleP, {x:top.x, y:0}));
+        v1 = sl2Apply(g, C.add(poleQ, {x:top.x, y:0}));
+        nextGen = Q;
+        break;
+      case 2:
+        v0 = sl2Apply(g, C.add(poleQ, {x:top.x, y:0}));
+        v1 = sl2Apply(g, C.add(poleR, {x:top.x, y:0}));
+        nextGen = Q;
+        break;
+      case 3:
+        v0 = sl2Apply(g, C.add(poleR,  {x:top.x, y:0}));
+        v1 = sl2Apply(g, C.add(poleRP, {x:top.x, y:0}));
+        nextGen = R;
+        break;
+    }
+
+    if (lsOutOfRange(l, poleG, v0, v1)) {
+      stack.pop();
+      continue;
+    }
+    if (C.abs(C.sub(v0, poleG)) < deltaPix) {
+      drawLineLS(v0, poleG, '#000');
+      stack.pop();
+      continue;
+    }
+
+    // advance sector for THIS level
+    let advanceXAfter = false;
+    switch (top.sector) {
+      case 0:
+        if (top.increasing) top.sector = 1;
+        else { top.sector = 3; top.x -= 1; }
+        break;
+      case 1:
+        top.sector = top.increasing ? 2 : 0;
+        break;
+      case 2:
+        top.sector = top.increasing ? 3 : 1;
+        break;
+      case 3:
+        if (top.increasing) { top.sector = 0; top.x += 1; }
+        else { top.sector = 2; }
+        break;
+    }
+
+    if (lsClose(v0, v1)) {
+      drawLineLS(v0, v1, '#000');
+    } else if (stack.length < MAX_DEPTH) {
+      // push new level: T' = g * [1, x; 0, 1] * nextGen
+      const trans = sl2Make(ONE, {x:top.x, y:0}, ZERO, ONE);
+      const newT = sl2Mul(sl2Mul(g, trans), nextGen);
+      let newSector, newIncreasing;
+      switch ((top.sector + 3) % 4) {  // sector we just used
+        case 0: newSector = 3; newIncreasing = true;  break;
+        case 1: newSector = 3; newIncreasing = true;  break;
+        case 2: newSector = 0; newIncreasing = false; break;
+        case 3: newSector = 0; newIncreasing = false; break;
+      }
+      stack.push({T: newT, sector: newSector, x: 0, increasing: newIncreasing});
+    }
+  }
+}
+
+// ====================================================================
+//   Limit Set: full render
+// ====================================================================
+let lsRenderTok = 0;
+function renderLS() {
+  clearLS();
+  drawAxesLS();
+  const tok = ++lsRenderTok;
+
+  // IC and LS done synchronously; they're fast enough.
+  if (State.showIC) drawICRecursive();
+  if (State.showLS) {
+    try { drawLimitSet(); } catch(e) { console.warn('LS error', e); }
+  }
+  // draw the three base points for orientation
+  drawBasePoints();
+  updateProgress();
+}
+
+function drawAxesLS() {
+  const {ctx, xf, w, h} = lsState;
+  // light grid at half-integer ticks
+  ctx.strokeStyle = '#e8e0d0';
+  ctx.lineWidth = 0.5;
+  const xL = State.ls.xmin, xR = State.ls.xmax;
+  const yB = State.ls.ymin, yT = State.ls.ymax;
+  for (let xi = Math.ceil(xL*4)/4; xi <= xR; xi += 0.25) {
+    const [px, _] = xf.toPx(xi, 0);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let yi = Math.ceil(yB*4)/4; yi <= yT; yi += 0.25) {
+    const [_, py] = xf.toPx(0, yi);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+  // axes
+  ctx.strokeStyle = '#c8b890';
+  ctx.lineWidth = 0.8;
+  const [_, py0] = xf.toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(0, py0); ctx.lineTo(w, py0); ctx.stroke();
+  const [px0, __] = xf.toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(px0, 0); ctx.lineTo(px0, h); ctx.stroke();
+  // integer marks 0, 1
+  for (let k of [0, 1]) {
+    const [pxk, pyk] = xf.toPx(k, 0);
+    ctx.fillStyle = '#a08858';
+    ctx.beginPath(); ctx.arc(pxk, pyk, 2, 0, Math.PI*2); ctx.fill();
+  }
+}
+
+function drawBasePoints() {
+  const {ctx, xf} = lsState;
+  const z = currentZ();
+  const labels = ['z₀', 'z₁', 'z₂'];
+  ctx.font = '10px serif';
+  ctx.fillStyle = '#444';
+  for (let i = 0; i < 3; i++) {
+    const [px, py] = xf.toPx(z[i].x, z[i].y);
+    ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI*2); ctx.fill();
+    ctx.fillText(labels[i], px+5, py-5);
+  }
+}
+
+// ====================================================================
+//   Parameter Space
+//   Implements PSDraftsman::Discreteness via Jørgensen's inequality.
+// ====================================================================
+
+// ====================================================================
+//   Faithful port of PTPSDraftsman.cpp (Masaaki Wada)
+//   Function-by-function translation of:
+//     - PTPSDraftsman::Jorgensen / JI / AdjustT
+//     - PTPSDraftsman::TrianglesAbove / TrianglesBelow
+//     - PTPSDraftsman::Flip / LeftAxisIntsctLow
+//     - PTPSDraftsman::Discreteness  (full 4-stage FSM)
+// ====================================================================
+
+const Discr_max_level = 1000;
+const ADJ = 0.99999999999999;
+
+// Discreteness probe shared workspace (mirrors PTPSDraftsman members).
+// Allocated once and reused across pixels to avoid GC pressure.
+const PS = {
+  A: new Array(Discr_max_level),  // [level][0..2] complex
+  L: 0,
+  Lx: -1,
+  La: 0,
+  Lb: 0,
+  T:  3.0,  // mT
+  Out: {i: 0},  // out-param for TrianglesAbove/Below
+};
+for (let i = 0; i < Discr_max_level; i++) {
+  PS.A[i] = [{x:0,y:0}, {x:0,y:0}, {x:0,y:0}];
+}
+
+function adjustT(s) {
+  // PTPSDraftsman::AdjustT
+  if (s + 1e-11 < PS.T) {
+    if (s < 2.0) PS.T = 2.0000000001;
+    else PS.T = s + 1e-11;
+  }
+}
+
+// ---- JI (recursive) — PTPSDraftsman::JI ----
+// We use iterative-loop-style with explicit recursion (depth is small,
+// max O(psDepth)). Faithful to the C++ for branch ordering.
+function JI(t0, t1, t2, depth) {
+  if (depth <= 0) return true;
+  const ta0 = C.abs(t0);
+  const ta1 = C.abs(t1);
+  const ta2 = C.abs(t2);
+  const tt0 = C.sub(C.mul(t1, t2), t0);
+  const tta0 = C.abs(tt0);
+  if (tta0 < 1.0) return false;
+  adjustT(tta0);
+  const tt1 = C.sub(C.mul(t0, t2), t1);
+  const tta1 = C.abs(tt1);
+  if (tta1 < 1.0) return false;
+  adjustT(tta1);
+  let flg = 0;
+  if (tta0 < State.psDelta && (tta0 < ta0 || ta1 <= PS.T || ta2 <= PS.T)) flg |= 1;
+  if (tta1 < State.psDelta && (tta1 < ta1 || ta0 <= PS.T || ta2 <= PS.T)) flg |= 2;
+  switch (flg) {
+    case 0: return true;
+    case 1: return JI(t2, t1, tt0, depth - 1);
+    case 2: return JI(t0, t2, tt1, depth - 1);
+    case 3:
+      if (tta0 < tta1)
+        return JI(t2, t1, tt0, depth - 1) && JI(t0, t2, tt1, depth - 1);
+      else
+        return JI(t0, t2, tt1, depth - 1) && JI(t2, t1, tt0, depth - 1);
+  }
+  return true; // dummy
+}
+
+// ---- Jorgensen — PTPSDraftsman::Jorgensen ----
+function Jorgensen(a0, a1, a2, depth) {
+  if ((a0.x===0 && a0.y===0) || (a1.x===0 && a1.y===0) || (a2.x===0 && a2.y===0))
+    return false;
+  PS.T = 3.0;
+  const t = [null, null, null];
+  t[0] = C.div(ONE, C.sqrt(C.mul(a0, a1)));
+  t[1] = C.div(ONE, C.sqrt(C.mul(a1, a2)));
+  t[2] = C.mul(a1, C.mul(t[0], t[1]));
+  const ta = [C.abs(t[0]), C.abs(t[1]), C.abs(t[2])];
+  for (let i = 0; i < 3; i++) {
+    if (ta[i] < 1.0) return false;
+    adjustT(ta[i]);
+  }
+  const tt = [null, null, null];
+  const tta = [0, 0, 0];
+  for (let i = 0; i < 3; i++) {
+    tt[i]  = C.sub(C.mul(t[(i+1)%3], t[(i+2)%3]), t[i]);
+    tta[i] = C.abs(tt[i]);
+    if (tta[i] < 1.0) return false;
+    adjustT(tta[i]);
+  }
+  let flg = 0;
+  for (let i = 0; i < 3; i++) {
+    if (tta[i] < State.psDelta &&
+        (tta[i] < ta[i] || ta[(i+1)%3] <= PS.T || ta[(i+2)%3] <= PS.T))
+      flg |= 1 << i;
+  }
+  switch (flg) {
+    case 0: return true;
+    case 1: return JI(t[2], t[1], tt[0], depth);
+    case 2: return JI(t[0], t[2], tt[1], depth);
+    case 4: return JI(t[1], t[0], tt[2], depth);
+    case 3:
+      if (tta[0] <= tta[1])
+        return JI(t[2],t[1],tt[0],depth) && JI(t[0],t[2],tt[1],depth);
+      else
+        return JI(t[0],t[2],tt[1],depth) && JI(t[2],t[1],tt[0],depth);
+    case 5:
+      if (tta[0] <= tta[2])
+        return JI(t[2],t[1],tt[0],depth) && JI(t[1],t[0],tt[2],depth);
+      else
+        return JI(t[1],t[0],tt[2],depth) && JI(t[2],t[1],tt[0],depth);
+    case 6:
+      if (tta[1] <= tta[2])
+        return JI(t[0],t[2],tt[1],depth) && JI(t[1],t[0],tt[2],depth);
+      else
+        return JI(t[1],t[0],tt[2],depth) && JI(t[0],t[2],tt[1],depth);
+    case 7:
+      // 6 orderings of three values, faithful to C++
+      if (tta[0] <= tta[1]) {
+        if (tta[1] <= tta[2])              // 012
+          return JI(t[2],t[1],tt[0],depth) && JI(t[0],t[2],tt[1],depth) && JI(t[1],t[0],tt[2],depth);
+        else if (tta[0] <= tta[2])         // 021
+          return JI(t[2],t[1],tt[0],depth) && JI(t[1],t[0],tt[2],depth) && JI(t[0],t[2],tt[1],depth);
+        else                                // 201
+          return JI(t[1],t[0],tt[2],depth) && JI(t[2],t[1],tt[0],depth) && JI(t[0],t[2],tt[1],depth);
+      } else if (tta[0] <= tta[2]) {       // 102
+        return JI(t[0],t[2],tt[1],depth) && JI(t[2],t[1],tt[0],depth) && JI(t[1],t[0],tt[2],depth);
+      } else if (tta[1] <= tta[2]) {       // 120 (note: C++ rechecks tta[0]<=tta[2] which is unreachable here; we use tta[1]<=tta[2])
+        return JI(t[0],t[2],tt[1],depth) && JI(t[1],t[0],tt[2],depth) && JI(t[2],t[1],tt[0],depth);
+      } else {                              // 210
+        return JI(t[1],t[0],tt[2],depth) && JI(t[0],t[2],tt[1],depth) && JI(t[2],t[1],tt[0],depth);
+      }
+  }
+  return true;
+}
+
+// ---- LeftAxisIntsctLow — PTPSDraftsman::LeftAxisIntsctLow ----
+function leftAxisIntsctLow(a0, a1, a2) {
+  const s1 = (C.abs(a0) - C.abs(a2) + C.abs(a1)) / 2.0;
+  const s2 = C.abs(a1) - s1;
+  const ax1 = axisV(a0, a1);
+  const ax2 = axisV(a1, a2);
+  const t1 =   s1 * C.cross(a1, ax1) / C.dot(a1, ax1);
+  const t2 = - s2 * C.cross(a1, ax2) / C.dot(a1, ax2);
+  return t1 < t2;
+}
+
+// ---- TrianglesAbove — PTPSDraftsman::TrianglesAbove ----
+// Returns CP state code: 0 = selfintersection, 1 = frontier, 2 = normal
+// Sets PS.Out.i to the flip index when applicable.
+const CP_SELFINT = 0, CP_FRONTIER = 1, CP_NORMAL = 2;
+
+function trianglesAbove() {
+  const a0 = PS.A[PS.L][0];
+  const a1 = PS.A[PS.L][1];
+  const a2 = PS.A[PS.L][2];
+  const c01 = C.cross(a0, a1);
+  const c12 = C.cross(a1, a2);
+  const c20 = C.cross(a2, a0);
+  if (c01 > 0 && c12 > 0 && c20 > 0) {
+    PS.Out.i = -1;
+    return CP_SELFINT;
+  } else if (c01 < 0 && c12 < 0 && c20 < 0) {
+    PS.Out.i = (a1.y > 0 && a2.y < 0) ? 0 : 1;
+    return CP_SELFINT;
+  } else {
+    let flg = 0;
+    if (C.norm(C.add(a0, axisV(a0, a1))) < ADJ * C.abs(a0) * C.abs(a2)) flg |= 0x1;
+    if (C.norm(C.add(a1, axisV(a1, a2))) < ADJ * C.abs(a1) * C.abs(a0)) flg |= 0x2;
+    if (C.norm(C.add(a2, axisV(a2, a0))) < ADJ * C.abs(a2) * C.abs(a1)) flg |= 0x4;
+    switch (flg) {
+      case 0: return CP_FRONTIER;
+      case 1: PS.Out.i = 0; return CP_NORMAL;
+      case 2: PS.Out.i = 1; return CP_NORMAL;
+      case 4: PS.Out.i = 2; return CP_NORMAL;
+      case 3:
+        PS.Out.i = leftAxisIntsctLow(a0, a1, a2) ? 0 : 1;
+        return CP_NORMAL;
+      case 5:
+        PS.Out.i = leftAxisIntsctLow(a2, a0, a1) ? 2 : 0;
+        return CP_NORMAL;
+      case 6:
+        PS.Out.i = leftAxisIntsctLow(a1, a2, a0) ? 1 : 2;
+        return CP_NORMAL;
+    }
+  }
+  PS.Out.i = -1;
+  return CP_SELFINT;
+}
+
+// ---- TrianglesBelow — PTPSDraftsman::TrianglesBelow ----
+function trianglesBelow() {
+  const a0 = PS.A[PS.L][0];
+  const a1 = PS.A[PS.L][1];
+  const a2 = PS.A[PS.L][2];
+  const c01 = C.cross(a0, a1);
+  const c12 = C.cross(a1, a2);
+  const c20 = C.cross(a2, a0);
+  if (c01 > 0 && c12 > 0 && c20 > 0) {
+    PS.Out.i = (a1.y < 0 && a2.y > 0) ? 0 : 1;
+    return CP_SELFINT;
+  } else if (c01 < 0 && c12 < 0 && c20 < 0) {
+    PS.Out.i = -1;
+    return CP_SELFINT;
+  } else {
+    let flg = 0;
+    if (C.norm(C.sub(a0, axisV(a0, a1))) < ADJ * C.abs(a0) * C.abs(a2)) flg |= 0x1;
+    if (C.norm(C.sub(a1, axisV(a1, a2))) < ADJ * C.abs(a1) * C.abs(a0)) flg |= 0x2;
+    if (C.norm(C.sub(a2, axisV(a2, a0))) < ADJ * C.abs(a2) * C.abs(a1)) flg |= 0x4;
+    switch (flg) {
+      case 0: return CP_FRONTIER;
+      case 1: PS.Out.i = 0; return CP_NORMAL;
+      case 2: PS.Out.i = 1; return CP_NORMAL;
+      case 4: PS.Out.i = 2; return CP_NORMAL;
+      case 3:
+        PS.Out.i = leftAxisIntsctLow(a0, a1, a2) ? 1 : 0;
+        return CP_NORMAL;
+      case 5:
+        PS.Out.i = leftAxisIntsctLow(a2, a0, a1) ? 0 : 2;
+        return CP_NORMAL;
+      case 6:
+        PS.Out.i = leftAxisIntsctLow(a1, a2, a0) ? 2 : 1;
+        return CP_NORMAL;
+    }
+  }
+  PS.Out.i = -1;
+  return CP_SELFINT;
+}
+
+// ---- Flip — PTPSDraftsman::Flip ----
+function psFlip(i) {
+  const a0 = PS.A[PS.L][0];
+  const a1 = PS.A[PS.L][1];
+  const a2 = PS.A[PS.L][2];
+  const next = PS.A[PS.L + 1];
+  let s;
+  if (i === 0) {
+    s = C.add(a0, a1);
+    next[0] = C.div(C.mul(a2, a0), s);
+    next[1] = s;
+    next[2] = C.div(C.mul(a2, a1), s);
+  } else if (i === 1) {
+    s = C.add(a1, a2);
+    next[0] = C.div(C.mul(a0, a1), s);
+    next[1] = s;
+    next[2] = C.div(C.mul(a0, a2), s);
+  } else {
+    s = C.add(a2, a0);
+    next[0] = C.div(C.mul(a1, a2), s);
+    next[1] = s;
+    next[2] = C.div(C.mul(a1, a0), s);
+  }
+  PS.L++;
+}
+
+// ---- Discreteness — PTPSDraftsman::Discreteness ----
+// Full 4-stage state machine. Returns one of:
+//   'discrete', 'indiscrete', 'unknown', 'stack_overflow', 'debug'
+// along with the depth counters mLx, mLa, mLb for the color map.
+const DISCRETE       = 'discrete';
+const INDISCRETE     = 'indiscrete';
+const UNKNOWN_STATE  = 'unknown';
+const STACK_OVERFLOW = 'stack_overflow';
+const DEBUG_STATE    = 'debug';
+
+function probeDiscreteness(z) {
+  const a1 = z;
+  const z2 = z2for(State.kind, z, State.linearK, State.z2);
+  const a2 = C.sub(z2, z);
+  const a0 = C.sub(ONE, C.add(a1, a2));
+  if (!Jorgensen(a0, a1, a2, State.psDepth)) {
+    return {state: INDISCRETE, lx: 0, la: 0, lb: 0};
+  }
+
+  PS.L = 0;
+  PS.A[0][0] = a0;
+  PS.A[0][1] = a1;
+  PS.A[0][2] = a2;
+  PS.Lx = -1;
+  PS.La = 0;
+  PS.Lb = 0;
+
+  let stage = 1;
+  let up = true;
+  let iterations = 0;
+  const maxIter = State.psDepth * 8; // safety net beyond Discr_max_level
+
+  while (iterations++ < maxIter) {
+    if (stage === 1) {
+      if (up) {
+        const r = trianglesAbove();
+        if (r === CP_SELFINT) {
+          // C++ unconditionally returns unknown here (the if/else block
+          // after `return unknown;` is dead code).
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.La = 0;
+          up = false;
+          stage = 2;
+        } else { // CP_NORMAL
+          if (PS.L >= Discr_max_level - 1)
+            return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          psFlip(PS.Out.i);
+        }
+      } else {
+        const r = trianglesBelow();
+        if (r === CP_SELFINT) {
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.Lb = 0;
+          up = true;
+          stage = 2;
+        } else {
+          if (PS.L >= Discr_max_level - 1)
+            return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          psFlip(PS.Out.i);
+        }
+      }
+    } else if (stage === 2) {
+      if (up) {
+        const r = trianglesAbove();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1)
+            return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          PS.L--;
+          up = false;
+        } else if (r === CP_FRONTIER) {
+          PS.Lx = PS.L;
+          PS.La = 0;
+          return {state: DISCRETE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else { // CP_NORMAL
+          if (PS.L > 0 && PS.Out.i === 2) {
+            PS.L--;
+            PS.Lb++;
+          } else if (PS.L > PS.Lx) {
+            PS.Lx = PS.L;
+            stage = 3;
+            if (PS.L >= Discr_max_level - 1)
+              return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+            psFlip(PS.Out.i);
+          } else {
+            return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          }
+        }
+      } else {
+        const r = trianglesBelow();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1)
+            return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          PS.L--;
+          up = true;
+        } else if (r === CP_FRONTIER) {
+          PS.Lx = PS.L;
+          PS.Lb = 0;
+          return {state: DISCRETE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else {
+          if (PS.L > 0 && PS.Out.i === 2) {
+            PS.L--;
+            PS.La++;
+          } else if (PS.L > PS.Lx) {
+            PS.Lx = PS.L;
+            stage = 3;
+            if (PS.L >= Discr_max_level - 1)
+              return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+            psFlip(PS.Out.i);
+          } else {
+            return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          }
+        }
+      }
+    } else if (stage === 3) {
+      if (up) {
+        const r = trianglesAbove();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1) return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.La = 0;
+          up = false;
+          stage = 4;
+        } else {
+          if (PS.L >= Discr_max_level - 1)
+            return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          psFlip(PS.Out.i);
+        }
+      } else {
+        const r = trianglesBelow();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1) return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.Lb = 0;
+          up = true;
+          stage = 4;
+        } else {
+          if (PS.L >= Discr_max_level - 1)
+            return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          psFlip(PS.Out.i);
+        }
+      }
+    } else if (stage === 4) {
+      if (PS.L === PS.Lx) {
+        return {state: DISCRETE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+      } else if (up) {
+        const r = trianglesAbove();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1) return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.La = 0;
+          PS.Lx = PS.L;
+          return {state: DISCRETE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else { // CP_NORMAL
+          if (PS.Out.i === 2) {
+            PS.L--;
+            PS.Lb++;
+          } else {
+            PS.Lx = PS.L;
+            stage = 3;
+            if (PS.L >= Discr_max_level - 1)
+              return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+            psFlip(PS.Out.i);
+          }
+        }
+      } else {
+        const r = trianglesBelow();
+        if (r === CP_SELFINT) {
+          if (PS.Out.i === -1) return {state: DEBUG_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+          return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else if (r === CP_FRONTIER) {
+          PS.Lb = 0;
+          PS.Lx = PS.L;
+          return {state: DISCRETE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+        } else {
+          if (PS.Out.i === 2) {
+            PS.L--;
+            PS.La++;
+          } else {
+            PS.Lx = PS.L;
+            stage = 3;
+            if (PS.L >= Discr_max_level - 1)
+              return {state: STACK_OVERFLOW, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+            psFlip(PS.Out.i);
+          }
+        }
+      }
+    }
+  }
+  return {state: UNKNOWN_STATE, lx: PS.Lx, la: PS.La, lb: PS.Lb};
+}
+
+// PS color map — faithful port of PTPSDraftsman::TessellationColor
+// (the comment in OPTi_notes.txt says: "changed parameter space
+//  tessellation color to somehow alternate between light and dark")
+function psColor(probe) {
+  if (probe.state === INDISCRETE)     return [0, 0, 0];          // black
+  if (probe.state === UNKNOWN_STATE)  return [128, 128, 128];    // gray
+  if (probe.state === STACK_OVERFLOW) return [0, 255, 0];        // green
+  if (probe.state === DEBUG_STATE)    return [0, 0, 255];        // blue
+  // DISCRETE: depth-coded with alternating light/dark on each axis
+  const cs = 0.2;
+  const lb = probe.lb | 0;
+  const la = probe.la | 0;
+  const lx = probe.lx | 0;
+  let r = (1 - cs) * Math.exp(-0.1 * lb);
+  if ((lb & 1) === 0) r += cs;
+  let g = (1 - cs) * Math.exp(-0.1 * la);
+  if ((la & 1) === 0) g += cs;
+  let b = (1 - cs) * Math.exp(-0.2 * lx);
+  if ((lx & 1) === 0) b += cs;
+  return [
+    Math.max(0, Math.min(255, Math.floor(r * 255))),
+    Math.max(0, Math.min(255, Math.floor(g * 255))),
+    Math.max(0, Math.min(255, Math.floor(b * 255))),
+  ];
+}
+
+// Async parameter space render with chunks
+let psRenderTok = 0;
+let psImageData = null;
+
+function renderPS() {
+  const tok = ++psRenderTok;
+  const {ctx, w, h} = setupCanvas(pscv);
+  // background — matches the original OPTi (light beige paper)
+  ctx.fillStyle = '#f6f3ec';
+  ctx.fillRect(0,0,w,h);
+
+  if (!State.showPS) {
+    drawPSDecorations(ctx, w, h);
+    drawPSMarker(ctx, w, h);
+    return;
+  }
+  const res = State.psRes;
+  const pw = Math.min(res, w);
+  const ph = Math.min(res, h);
+  const img = ctx.createImageData(pw, ph);
+  psImageData = {img, pw, ph, w, h};
+  const xmin = State.ps.xmin, xmax = State.ps.xmax;
+  const ymin = State.ps.ymin, ymax = State.ps.ymax;
+  const dx = (xmax - xmin) / pw;
+  const dy = (ymax - ymin) / ph;
+
+  let row = 0;
+  const rowsPerTick = 4;
+
+  function step() {
+    if (tok !== psRenderTok) return;
+    const t0 = performance.now();
+    while (row < ph && performance.now() - t0 < 25) {
+      for (let r = 0; r < rowsPerTick && row < ph; r++, row++) {
+        const y = ymax - row * dy; // flip Y so imag axis points up visually
+        for (let c = 0; c < pw; c++) {
+          const x = xmin + (c + 0.5) * dx;
+          const probe = probeDiscreteness({x, y});
+          const [R,G,B] = psColor(probe);
+          const idx = (row * pw + c) * 4;
+          img.data[idx] = R;
+          img.data[idx+1] = G;
+          img.data[idx+2] = B;
+          img.data[idx+3] = 255;
+        }
+      }
+      // partial paint
+      const tmp = document.createElement('canvas');
+      tmp.width = pw; tmp.height = ph;
+      tmp.getContext('2d').putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(tmp, 0, 0, w, h);
+      document.getElementById('psprog').textContent = `${Math.floor(row/ph*100)}%`;
+    }
+    if (row < ph) {
+      requestAnimationFrame(step);
+    } else {
+      // final paint
+      const tmp = document.createElement('canvas');
+      tmp.width = pw; tmp.height = ph;
+      tmp.getContext('2d').putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.drawImage(tmp, 0, 0, w, h);
+      drawPSDecorations(ctx, w, h);
+      drawPSMarker(ctx, w, h);
+      document.getElementById('psprog').textContent = '';
+    }
+  }
+  step();
+}
+
+function drawPSDecorations(ctx, w, h) {
+  // axes
+  const xf = makeXform(State.ps, w, h);
+  ctx.strokeStyle = 'rgba(60,40,20,0.18)';
+  ctx.lineWidth = 0.5;
+  for (let xi = Math.ceil(State.ps.xmin); xi <= State.ps.xmax; xi++) {
+    const [px,_] = xf.toPx(xi, 0);
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, h); ctx.stroke();
+  }
+  for (let yi = Math.ceil(State.ps.ymin); yi <= State.ps.ymax; yi++) {
+    const [_,py] = xf.toPx(0, yi);
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(w, py); ctx.stroke();
+  }
+  ctx.strokeStyle = 'rgba(120,80,40,0.5)';
+  ctx.lineWidth = 0.8;
+  const [_, py0] = xf.toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(0, py0); ctx.lineTo(w, py0); ctx.stroke();
+  const [px0, __] = xf.toPx(0, 0);
+  ctx.beginPath(); ctx.moveTo(px0, 0); ctx.lineTo(px0, h); ctx.stroke();
+}
+
+function drawPSMarker(ctx, w, h) {
+  const xf = makeXform(State.ps, w, h);
+  const [px, py] = xf.toPx(State.z1.x, State.z1.y);
+  // shadow halo so the cross is readable over any color
+  ctx.strokeStyle = 'rgba(255,255,255,0.95)';
+  ctx.lineWidth = 3.0;
+  ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(px-10, py); ctx.lineTo(px-3, py);
+  ctx.moveTo(px+3, py);  ctx.lineTo(px+10, py);
+  ctx.moveTo(px, py-10); ctx.lineTo(px, py-3);
+  ctx.moveTo(px, py+3);  ctx.lineTo(px, py+10);
+  ctx.stroke();
+  ctx.strokeStyle = '#c0392b';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(px-10, py); ctx.lineTo(px-3, py);
+  ctx.moveTo(px+3, py);  ctx.lineTo(px+10, py);
+  ctx.moveTo(px, py-10); ctx.lineTo(px, py-3);
+  ctx.moveTo(px, py+3);  ctx.lineTo(px, py+10);
+  ctx.stroke();
+  // label z1
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.font = '11px serif';
+  ctx.fillText(`z₁ = ${State.z1.x.toFixed(3)} + ${State.z1.y.toFixed(3)}i`, px + 12, py - 8);
+}
+
+function updateProgress() {
+  document.getElementById('lsprog').textContent = '';
+}
+
+// ====================================================================
+//   UI Wiring
+// ====================================================================
+function bindRange(id, valId, key, sub) {
+  const el = document.getElementById(id);
+  const val = document.getElementById(valId);
+  el.addEventListener('input', () => {
+    const v = parseFloat(el.value);
+    if (sub) {
+      State[key][sub] = v;
+    } else {
+      State[key] = v;
+    }
+    val.textContent = v.toFixed(3);
+    queueRender();
+  });
+  el.addEventListener('change', () => {
+    queueRender(true);
+  });
+}
+
+function syncZ1Sliders() {
+  document.getElementById('z1r').value = State.z1.x;
+  document.getElementById('z1i').value = State.z1.y;
+  document.getElementById('z1r-val').textContent = State.z1.x.toFixed(3);
+  document.getElementById('z1i-val').textContent = State.z1.y.toFixed(3);
+  document.getElementById('z2r').value = State.z2.x;
+  document.getElementById('z2i').value = State.z2.y;
+  document.getElementById('z2r-val').textContent = State.z2.x.toFixed(3);
+  document.getElementById('z2i-val').textContent = State.z2.y.toFixed(3);
+}
+
+document.getElementById('z1r').addEventListener('input', e => {
+  State.z1.x = parseFloat(e.target.value);
+  document.getElementById('z1r-val').textContent = State.z1.x.toFixed(3);
+  queueRender();
+});
+document.getElementById('z1i').addEventListener('input', e => {
+  State.z1.y = parseFloat(e.target.value);
+  document.getElementById('z1i-val').textContent = State.z1.y.toFixed(3);
+  queueRender();
+});
+document.getElementById('z2r').addEventListener('input', e => {
+  State.z2.x = parseFloat(e.target.value);
+  document.getElementById('z2r-val').textContent = State.z2.x.toFixed(3);
+  queueRender();
+});
+document.getElementById('z2i').addEventListener('input', e => {
+  State.z2.y = parseFloat(e.target.value);
+  document.getElementById('z2i-val').textContent = State.z2.y.toFixed(3);
+  queueRender();
+});
+
+document.getElementById('slice').addEventListener('change', e => {
+  State.kind = e.target.value;
+  document.getElementById('z2row').style.display =
+    (State.kind === 'QF') ? '' : 'none';
+  queueRender(true);
+});
+document.getElementById('ls').addEventListener('change', e => { State.showLS = e.target.checked; queueRender(); });
+document.getElementById('ic').addEventListener('change', e => { State.showIC = e.target.checked; queueRender(); });
+document.getElementById('icax').addEventListener('change', e => { State.showICAxes = e.target.checked; queueRender(); });
+document.getElementById('ps').addEventListener('change', e => { State.showPS = e.target.checked; queueRender(true); });
+
+document.getElementById('lsq').addEventListener('change', e => {
+  State.lsDelta = parseFloat(e.target.value);
+  document.getElementById('lsq-val').textContent = e.target.options[e.target.selectedIndex].textContent;
+  queueRender();
+});
+document.getElementById('iclev').addEventListener('input', e => {
+  State.icLevel = parseInt(e.target.value);
+  document.getElementById('iclev-val').textContent = State.icLevel;
+  queueRender();
+});
+document.getElementById('psres').addEventListener('change', e => {
+  State.psRes = parseInt(e.target.value);
+  document.getElementById('psres-val').textContent = State.psRes;
+  queueRender(true);
+});
+document.getElementById('psd').addEventListener('input', e => {
+  State.psDepth = parseInt(e.target.value);
+  document.getElementById('psd-val').textContent = State.psDepth;
+  queueRender(true);
+});
+document.getElementById('psdel').addEventListener('input', e => {
+  State.psDelta = parseFloat(e.target.value);
+  document.getElementById('psdel-val').textContent = State.psDelta;
+  queueRender(true);
+});
+
+document.getElementById('home').addEventListener('click', () => {
+  State.ls = { xmin: -0.3, xmax: 1.3, ymin: -0.8, ymax: 0.8 };
+  State.ps = { xmin: -0.3, xmax: 1.3, ymin: -0.8, ymax: 0.8 };
+  queueRender(true);
+});
+document.getElementById('zoomin').addEventListener('click',  () => { zoomView('ls', 0.5); zoomView('ps', 0.5); queueRender(true); });
+document.getElementById('zoomout').addEventListener('click', () => { zoomView('ls', 2);   zoomView('ps', 2);   queueRender(true); });
+
+function zoomView(which, factor, cx, cy) {
+  const v = State[which];
+  if (cx === undefined) { cx = (v.xmin+v.xmax)/2; cy = (v.ymin+v.ymax)/2; }
+  v.xmin = cx + factor*(v.xmin - cx);
+  v.xmax = cx + factor*(v.xmax - cx);
+  v.ymin = cy + factor*(v.ymin - cy);
+  v.ymax = cy + factor*(v.ymax - cy);
+}
+
+// Presets
+document.querySelectorAll('[data-preset]').forEach(b => {
+  b.addEventListener('click', () => {
+    const p = b.dataset.preset;
+    switch (p) {
+      case 'maskit-cusp':
+        State.kind = 'Maskit';
+        State.z1 = {x: 0.256, y: 0.497}; // Sample/Parker/Maskit12345678
+        break;
+      case 'qf-classic':
+        State.kind = 'QF';
+        State.z1 = {x:1/3, y:0.4};
+        State.z2 = {x:2/3, y:0.0};
+        break;
+      case 'earle-real':
+        State.kind = 'Earle';
+        State.z1 = {x:0.3, y:0.5};
+        break;
+      case 'riley':
+        State.kind = 'Riley';
+        State.z1 = {x:1.0, y:1.0};
+        break;
+    }
+    document.getElementById('slice').value = State.kind;
+    document.getElementById('z2row').style.display =
+      (State.kind === 'QF') ? '' : 'none';
+    syncZ1Sliders();
+    queueRender(true);
+  });
+});
+
+// ---- Limit-set pane interactions (pan + zoom) ----
+let panState = null;
+lscv.addEventListener('mousedown', e => {
+  panState = {sx:e.clientX, sy:e.clientY, view:{...State.ls}};
+  lscv.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', e => {
+  const rect = lscv.getBoundingClientRect();
+  if (e.target === lscv || lscv === document.elementFromPoint(e.clientX,e.clientY)) {
+    if (rect.width>0) {
+      const px = e.clientX - rect.left, py = e.clientY - rect.top;
+      const xf = makeXform(State.ls, rect.width, rect.height);
+      const [wx, wy] = xf.toW(px, py);
+      document.getElementById('lscoord').textContent = `${wx.toFixed(4)} + ${wy.toFixed(4)}i`;
+    }
+  }
+  if (panState) {
+    const rect = lscv.getBoundingClientRect();
+    const dx = (e.clientX - panState.sx) / rect.width * (panState.view.xmax - panState.view.xmin);
+    const dy = (e.clientY - panState.sy) / rect.height * (panState.view.ymax - panState.view.ymin);
+    State.ls.xmin = panState.view.xmin - dx;
+    State.ls.xmax = panState.view.xmax - dx;
+    State.ls.ymin = panState.view.ymin + dy;
+    State.ls.ymax = panState.view.ymax + dy;
+    queueRender();
+  }
+});
+window.addEventListener('mouseup', () => {
+  if (panState) { panState = null; lscv.style.cursor = 'crosshair'; queueRender(); }
+});
+lscv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = lscv.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const xf = makeXform(State.ls, rect.width, rect.height);
+  const [wx, wy] = xf.toW(px, py);
+  const factor = e.deltaY > 0 ? 1.2 : 1/1.2;
+  zoomView('ls', factor, wx, wy);
+  queueRender();
+}, {passive:false});
+
+// ---- PS pane interactions (click to set z1, drag to set, wheel to zoom) ----
+let psDragging = false;
+pscv.addEventListener('mousedown', e => {
+  psDragging = true;
+  setZ1FromPS(e);
+});
+pscv.addEventListener('mousemove', e => {
+  const rect = pscv.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const xf = makeXform(State.ps, rect.width, rect.height);
+  const [wx, wy] = xf.toW(px, py);
+  document.getElementById('pscoord').textContent = `${wx.toFixed(4)} + ${wy.toFixed(4)}i`;
+  if (psDragging) setZ1FromPS(e, false);
+});
+window.addEventListener('mouseup', () => {
+  if (psDragging) { psDragging = false; queueRender(); }
+});
+pscv.addEventListener('wheel', e => {
+  e.preventDefault();
+  const rect = pscv.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const xf = makeXform(State.ps, rect.width, rect.height);
+  const [wx, wy] = xf.toW(px, py);
+  const factor = e.deltaY > 0 ? 1.2 : 1/1.2;
+  zoomView('ps', factor, wx, wy);
+  queueRender(true);
+}, {passive:false});
+
+function setZ1FromPS(e, doRender = true) {
+  const rect = pscv.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  const xf = makeXform(State.ps, rect.width, rect.height);
+  const [wx, wy] = xf.toW(px, py);
+  State.z1 = {x: wx, y: wy};
+  syncZ1Sliders();
+  // Only the LS pane needs re-rendering on every drag step; redraw the
+  // marker overlay on PS without recomputing the bitmap.
+  if (psImageData) {
+    const {ctx, w, h} = lsState; // dummy; redraw marker on pscv:
+    const pctx = pscv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const rectPS = pscv.parentElement.getBoundingClientRect();
+    // redraw cached PS bitmap then overlay
+    const {img, pw, ph} = psImageData;
+    const tmp = document.createElement('canvas');
+    tmp.width = pw; tmp.height = ph;
+    tmp.getContext('2d').putImageData(img, 0, 0);
+    pctx.fillStyle = '#f6f3ec';
+    pctx.fillRect(0,0,rectPS.width,rectPS.height);
+    pctx.imageSmoothingEnabled = true;
+    pctx.drawImage(tmp, 0, 0, rectPS.width, rectPS.height);
+    drawPSDecorations(pctx, rectPS.width, rectPS.height);
+    drawPSMarker(pctx, rectPS.width, rectPS.height);
+  }
+  if (doRender) renderLS();
+  else renderLS();
+}
+
+// ====================================================================
+//   Render scheduling
+// ====================================================================
+let renderHandle = null;
+let lastFullRender = 0;
+function queueRender(full = false) {
+  if (renderHandle) cancelAnimationFrame(renderHandle);
+  renderHandle = requestAnimationFrame(() => {
+    renderHandle = null;
+    if (full) {
+      renderLS();
+      renderPS();
+    } else {
+      renderLS();
+    }
+  });
+}
+
+// Resize handling
+let resizeT;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeT);
+  resizeT = setTimeout(() => queueRender(true), 100);
+});
+
+// Initial render
+window.addEventListener('load', () => {
+  syncZ1Sliders();
+  document.getElementById('z2row').style.display =
+    (State.kind === 'QF') ? '' : 'none';
+  queueRender(true);
+});
+</script>
+
+</body>
+</html>
