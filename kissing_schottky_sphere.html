@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kissing Schottky — Riemann Sphere</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,400&family=Spline+Sans+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{ --paper:#f4efe6; --gold:#c9a14a; }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:
+      radial-gradient(1200px 700px at 78% -12%, #16213d 0%, transparent 60%),
+      radial-gradient(900px 800px at -12% 112%, #1c2742 0%, transparent 55%),
+      #050811;
+    color:var(--paper); font-family:"Fraunces",serif; overflow:hidden;
+  }
+  #scene{position:fixed; inset:0}
+  .panel{
+    position:fixed; top:24px; right:24px; width:300px; z-index:10;
+    display:flex; flex-direction:column; gap:16px;
+    background:rgba(7,11,22,.55); backdrop-filter:blur(14px);
+    border:1px solid rgba(201,161,74,.32); border-radius:10px; padding:22px;
+    box-shadow:0 24px 60px -24px rgba(0,0,0,.8);
+  }
+  h1{font-weight:300; font-size:25px; line-height:1.06; letter-spacing:-.01em}
+  h1 em{font-style:italic; color:var(--gold)}
+  .sub{font-family:"Spline Sans Mono",monospace; font-size:10px; letter-spacing:.18em;
+    text-transform:uppercase; opacity:.55; margin-top:6px}
+  .ctrl{display:flex; flex-direction:column; gap:7px}
+  .ctrl label{font-family:"Spline Sans Mono",monospace; font-size:10.5px;
+    letter-spacing:.08em; text-transform:uppercase; opacity:.78;
+    display:flex; justify-content:space-between}
+  .ctrl label b{color:var(--gold); font-weight:500}
+  input[type=range]{-webkit-appearance:none; height:2px; border-radius:2px;
+    background:rgba(244,239,230,.22)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none; width:13px;
+    height:13px; border-radius:50%; background:var(--gold); cursor:pointer;
+    box-shadow:0 0 0 4px rgba(201,161,74,.18)}
+  .row{display:flex; gap:9px}
+  button{flex:1; font-family:"Spline Sans Mono",monospace; font-size:10.5px;
+    letter-spacing:.1em; text-transform:uppercase; padding:10px;
+    background:transparent; color:var(--paper); border:1px solid rgba(244,239,230,.28);
+    border-radius:5px; cursor:pointer; transition:.22s}
+  button:hover{border-color:var(--gold); color:var(--gold)}
+  button.on{background:var(--gold); color:#0b1020; border-color:var(--gold)}
+  .toggle{display:flex; gap:9px; align-items:center;
+    font-family:"Spline Sans Mono",monospace; font-size:10.5px;
+    letter-spacing:.08em; text-transform:uppercase; opacity:.85; cursor:pointer}
+  .toggle input{accent-color:var(--gold); width:14px; height:14px}
+  .stat{font-family:"Spline Sans Mono",monospace; font-size:10px; opacity:.5}
+  .note{font-size:12.5px; line-height:1.5; opacity:.62; font-style:italic;
+    border-top:1px solid rgba(244,239,230,.14); padding-top:13px}
+  .hint{position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    font-family:"Spline Sans Mono",monospace; font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; opacity:.4; z-index:10}
+</style>
+</head>
+<body>
+  <div id="scene"></div>
+
+  <div class="panel">
+    <div>
+      <h1>Kissing <em>Schottky</em></h1>
+      <div class="sub">DFS · Riemann Sphere · S²</div>
+    </div>
+
+    <div class="ctrl">
+      <label>trace (a) <b id="va">2.000</b></label>
+      <input id="ta" type="range" min="1.85" max="2.30" step="0.002" value="2.0">
+    </div>
+    <div class="ctrl">
+      <label>trace (b) <b id="vb">2.000</b></label>
+      <input id="tb" type="range" min="1.85" max="2.30" step="0.002" value="2.0">
+    </div>
+    <div class="ctrl">
+      <label>depth <b id="vd">13</b></label>
+      <input id="dep" type="range" min="6" max="20" step="1" value="13">
+    </div>
+    <div class="ctrl">
+      <label>cutoff ε ×10⁻³ <b id="ve">6</b></label>
+      <input id="eps" type="range" min="1" max="40" step="1" value="6">
+    </div>
+
+    <label class="toggle"><input type="checkbox" id="spin" checked> auto-rotate</label>
+    <label class="toggle"><input type="checkbox" id="grid" checked> show sphere</label>
+
+    <div class="row">
+      <button id="go" class="on">Redraw</button>
+      <button id="reset">Reset view</button>
+    </div>
+
+    <div class="stat" id="cnt">points: —</div>
+    <div class="note">
+      Both parabolic traces are free; the third trace solves the Markov
+      relation so the commutator stays −2 (the cusp/kissing locus). The
+      planar limit set is lifted to the sphere by inverse stereographic
+      projection — ∞ sits at the north pole.
+    </div>
+  </div>
+
+  <div class="hint">drag to orbit · scroll to zoom</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js"
+}}
+</script>
+<script type="module">
+import * as THREE from "three";
+
+/* ---------- complex arithmetic ---------- */
+const C=(re,im)=>({re,im});
+const add=(a,b)=>C(a.re+b.re,a.im+b.im);
+const sub=(a,b)=>C(a.re-b.re,a.im-b.im);
+const mul=(a,b)=>C(a.re*b.re-a.im*b.im, a.re*b.im+a.im*b.re);
+const div=(a,b)=>{const d=b.re*b.re+b.im*b.im; return C((a.re*b.re+a.im*b.im)/d,(a.im*b.re-a.re*b.im)/d);};
+const sqrtC=(z)=>{const r=Math.hypot(z.re,z.im); const re=Math.sqrt((r+z.re)/2);
+  let im=Math.sqrt(Math.max(0,(r-z.re)/2)); if(z.im<0)im=-im; return C(re,im);};
+
+/* ---------- Möbius (2x2 over C) ---------- */
+const matMul=(M,N)=>[
+  add(mul(M[0],N[0]),mul(M[1],N[2])), add(mul(M[0],N[1]),mul(M[1],N[3])),
+  add(mul(M[2],N[0]),mul(M[3],N[2])), add(mul(M[2],N[1]),mul(M[3],N[3]))];
+const apply=(M,z)=>div(add(mul(M[0],z),M[1]), add(mul(M[2],z),M[3]));
+const inv=(M)=>[M[3],C(-M[1].re,-M[1].im),C(-M[2].re,-M[2].im),M[0]]; // det 1
+
+/* ---------- Grandma recipe: free ta, tb; cusp commutator = -2 ---------- */
+function generators(taR,tbR){
+  const ta=C(taR,0), tb=C(tbR,0);
+  const A=mul(ta,tb), B=add(mul(ta,ta),mul(tb,tb));
+  const disc=sub(mul(A,A), mul(C(4,0),B));
+  const tab=div(sub(A,sqrtC(disc)),C(2,0));            // complex root -> cusp
+  const num=mul(sub(tab,C(2,0)),tb);
+  const den=add(sub(mul(tb,tab),mul(C(2,0),ta)), mul(C(0,2),tab));
+  const z0=div(num,den);
+  const aTL=div(ta,C(2,0));
+  const aTR=div(add(sub(mul(ta,tab),mul(C(2,0),tb)),C(0,4)),
+                mul(add(mul(C(2,0),tab),C(4,0)), z0));
+  const aBL=div(mul(sub(sub(mul(ta,tab),mul(C(2,0),tb)),C(0,4)), z0),
+                sub(mul(C(2,0),tab),C(4,0)));
+  const a=[aTL,aTR,aBL,aTL];
+  const b=[ div(sub(tb,C(0,2)),C(2,0)), div(tb,C(2,0)),
+            div(tb,C(2,0)), div(add(tb,C(0,2)),C(2,0)) ];
+  return [a,b];
+}
+
+/* ---------- inverse stereographic: C -> unit sphere S² (∞ = north pole) ---------- */
+function toSphere(z){
+  if(!isFinite(z.re)||!isFinite(z.im)) return [0,1,0]; // north pole
+  const d=1+z.re*z.re+z.im*z.im;
+  return [ 2*z.re/d, (z.re*z.re+z.im*z.im-1)/d, 2*z.im/d ]; // y = pole axis
+}
+
+/* ---------- DFS over the group; collect orbit on the sphere ---------- */
+function computeLimitSet(){
+  const ta=parseFloat(taS.value), tb=parseFloat(tbS.value);
+  const [a,b]=generators(ta,tb);
+  const gens=[a,b,inv(a),inv(b)];
+  const maxDepth=parseInt(depS.value);
+  const eps=parseInt(epsS.value)/1000;
+  const seed=C(1e-6,1e-6);
+
+  const positions=[], colors=[];
+  const I=[C(1,0),C(0,0),C(0,0),C(1,0)];
+  const stack=[{M:I,last:-1,d:0}];
+
+  function push(z,d){
+    if(!isFinite(z.re)||!isFinite(z.im)) return;
+    const [x,y,zz]=toSphere(z);
+    positions.push(x,y,zz);
+    const t=Math.min(1,d/maxDepth);
+    // gold -> rose -> teal gradient with depth
+    const r=0.79+0.05*Math.sin(6*t), gg=0.40+0.32*t, bb=0.28+0.55*t;
+    colors.push(r, gg, bb);
+  }
+
+  let guard=0;
+  while(stack.length && guard<4_000_000){
+    guard++;
+    const nd=stack.pop();
+    push(apply(nd.M,seed), nd.d);
+    if(nd.d>=maxDepth) continue;
+    for(let i=0;i<4;i++){
+      if(nd.last>=0 && i===((nd.last+2)%4)) continue;     // no g·g⁻¹ backtrack
+      const M2=matMul(nd.M,gens[i]);
+      const den=add(mul(M2[2],seed),M2[3]);
+      const shrink=1/(den.re*den.re+den.im*den.im);        // ~ |derivative|
+      if(nd.d>4 && shrink<eps){ push(apply(M2,seed),nd.d+1); continue; }
+      stack.push({M:M2,last:i,d:nd.d+1});
+    }
+  }
+  return {positions:new Float32Array(positions),
+          colors:new Float32Array(colors), n:positions.length/3};
+}
+
+/* ---------- three.js scene ---------- */
+const host=document.getElementById('scene');
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(2,devicePixelRatio));
+renderer.setSize(innerWidth,innerHeight);
+host.appendChild(renderer.domElement);
+
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,0.01,100);
+cam.position.set(2.4,1.3,2.4);
+
+const root=new THREE.Group(); scene.add(root);
+
+// reference sphere (the Riemann sphere itself)
+const sphereMat=new THREE.MeshBasicMaterial({color:0xc9a14a,wireframe:true,
+  transparent:true,opacity:0.10});
+const sphere=new THREE.Mesh(new THREE.SphereGeometry(1,48,32),sphereMat);
+sphere.rotation.z=Math.PI/2; // align poles to y
+root.add(sphere);
+const shellMat=new THREE.MeshPhongMaterial({color:0x10182c,transparent:true,
+  opacity:0.25,shininess:40,side:THREE.BackSide});
+root.add(new THREE.Mesh(new THREE.SphereGeometry(0.999,48,32),shellMat));
+scene.add(new THREE.AmbientLight(0xffffff,0.7));
+const key=new THREE.PointLight(0xffe6b0,1.2); key.position.set(3,4,2); scene.add(key);
+
+// points
+let cloud=null;
+function buildCloud(){
+  if(cloud){ root.remove(cloud); cloud.geometry.dispose(); cloud.material.dispose(); }
+  const {positions,colors,n}=computeLimitSet();
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));
+  const mat=new THREE.PointsMaterial({size:0.012,vertexColors:true,
+    sizeAttenuation:true,transparent:true,opacity:0.95});
+  cloud=new THREE.Points(geo,mat); root.add(cloud);
+  cnt.textContent="points: "+n.toLocaleString();
+}
+
+/* ---------- simple orbit controls (no extra deps) ---------- */
+let rot={x:0.3,y:0.6}, drag=false, px=0,py=0, dist=3.6;
+const el=renderer.domElement;
+el.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{ if(!drag)return;
+  rot.y+=(e.clientX-px)*0.008; rot.x+=(e.clientY-py)*0.008;
+  rot.x=Math.max(-1.45,Math.min(1.45,rot.x)); px=e.clientX; py=e.clientY;});
+el.addEventListener('wheel',e=>{e.preventDefault();
+  dist=Math.max(1.6,Math.min(8,dist*(1+e.deltaY*0.0012)));},{passive:false});
+
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;
+  cam.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight);});
+
+/* ---------- ui ---------- */
+const taS=document.getElementById('ta'), tbS=document.getElementById('tb'),
+      depS=document.getElementById('dep'), epsS=document.getElementById('eps');
+const va=document.getElementById('va'), vb=document.getElementById('vb'),
+      vd=document.getElementById('vd'), ve=document.getElementById('ve'),
+      cnt=document.getElementById('cnt');
+const spin=document.getElementById('spin'), gridT=document.getElementById('grid');
+function sync(){ va.textContent=(+taS.value).toFixed(3); vb.textContent=(+tbS.value).toFixed(3);
+  vd.textContent=depS.value; ve.textContent=epsS.value; }
+[taS,tbS,depS,epsS].forEach(s=>s.addEventListener('input',sync));
+document.getElementById('go').onclick=buildCloud;
+document.getElementById('reset').onclick=()=>{rot={x:0.3,y:0.6};dist=3.6;};
+gridT.onchange=()=>{sphere.visible=gridT.checked;};
+sync(); buildCloud();
+
+/* ---------- render loop ---------- */
+function frame(){
+  requestAnimationFrame(frame);
+  if(spin.checked) rot.y+=0.0022;
+  root.rotation.x=rot.x; root.rotation.y=rot.y;
+  const r=dist;
+  cam.position.set(0,0,r); cam.lookAt(0,0,0);
+  renderer.render(scene,cam);
+}
+frame();
+</script>
+</body>
+</html>
