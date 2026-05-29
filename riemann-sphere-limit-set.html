@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>インドラの真珠 — リーマン球面上の極限集合</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap');
+  :root{--bg:#06080d;--ink:#eef1f6;--dim:#8893a4;--line:#1a2230;--gold:#e8c168;--teal:#5fd3c4;--pearl:#f4ede0;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden;color:var(--ink);font-family:'Cormorant Garamond',Georgia,serif;
+    background:radial-gradient(1100px 800px at 75% -15%,#101b2e 0%,transparent 55%),
+      radial-gradient(900px 700px at -5% 115%,#1b1226 0%,transparent 50%),var(--bg);}
+  #stage{position:fixed;inset:0}
+  canvas{display:block}
+  .ui{position:fixed;inset:0;pointer-events:none;z-index:5}
+  .title{position:absolute;top:24px;left:30px;max-width:40ch}
+  .title h1{font-size:33px;font-weight:600;letter-spacing:.01em;line-height:1.02}
+  .title h1 em{font-style:italic;color:var(--gold)}
+  .title p{margin-top:7px;font-size:15px;font-style:italic;color:var(--dim);line-height:1.45}
+  .panel{position:absolute;top:24px;right:24px;width:262px;pointer-events:auto;
+    background:linear-gradient(180deg,rgba(13,19,29,.93),rgba(8,11,18,.93));
+    border:1px solid var(--line);border-radius:13px;padding:16px;
+    backdrop-filter:blur(11px);box-shadow:0 20px 70px rgba(0,0,0,.55)}
+  .panel h2{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--teal);margin-bottom:13px}
+  .recipes{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:15px}
+  .rc{flex:1 1 28%;font-family:'IBM Plex Mono',monospace;font-size:10.5px;padding:7px 5px;
+    border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);
+    color:var(--dim);cursor:pointer;text-align:center;transition:.16s;user-select:none}
+  .rc.on{background:rgba(232,193,104,.14);border-color:var(--gold);color:var(--gold)}
+  .rc:hover{border-color:var(--teal)}
+  .row{margin-bottom:12px}
+  .row.hidden{display:none}
+  .row label{display:flex;justify-content:space-between;align-items:baseline;
+    font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);margin-bottom:5px}
+  .row label b{color:var(--ink);font-weight:500}
+  input[type=range]{-webkit-appearance:none;width:100%;height:3px;border-radius:3px;
+    background:linear-gradient(90deg,var(--gold),var(--teal));outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+    border-radius:50%;background:var(--pearl);border:2px solid var(--bg);cursor:grab;
+    box-shadow:0 0 0 1px var(--line),0 2px 6px rgba(0,0,0,.6)}
+  .toggles{display:flex;gap:6px;margin-top:4px}
+  .tg{flex:1;font-family:'IBM Plex Mono',monospace;font-size:10px;padding:7px 4px;
+    border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.02);
+    color:var(--dim);cursor:pointer;text-align:center;transition:.16s;user-select:none}
+  .tg.on{background:rgba(95,211,196,.14);border-color:var(--teal);color:var(--teal)}
+  .stat{margin-top:13px;padding-top:11px;border-top:1px solid var(--line);
+    font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dim);line-height:1.7}
+  .stat span{color:var(--pearl)}
+  .desc{margin-top:6px;font-size:12.5px;font-style:italic;color:var(--dim);line-height:1.4}
+  .hint{position:absolute;left:30px;bottom:24px;pointer-events:none;font-style:italic;font-size:14px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="ui">
+  <div class="title">
+    <h1>Indra's <em>Pearls</em></h1>
+    <p>クライン群の極限集合を深さ優先探索で計算し、立体射影で透明なリーマン球面へ写したもの。北極が無限遠点 ∞。</p>
+  </div>
+  <div class="panel">
+    <h2>Kleinian Group · Limit Set</h2>
+    <div class="recipes" id="recipes">
+      <div class="rc on" data-r="grandma">Grandma</div>
+      <div class="rc" data-r="gasket">Gasket</div>
+      <div class="rc" data-r="riley">Riley</div>
+      <div class="rc" data-r="maskit">Maskit</div>
+    </div>
+    <div class="row" id="r-p1">
+      <label><span id="l-p1">trace t_a</span> <b><span id="v-p1">2.40</span></b></label>
+      <input id="p1" type="range" min="2.05" max="3.0" step="0.005" value="2.40">
+    </div>
+    <div class="row" id="r-p2">
+      <label><span id="l-p2">t_b (im)</span> <b><span id="v-p2">0.34</span></b></label>
+      <input id="p2" type="range" min="-1.0" max="1.0" step="0.005" value="0.34">
+    </div>
+    <div class="row">
+      <label>recursion depth <b><span id="vdep">60</span></b></label>
+      <input id="dep" type="range" min="20" max="120" step="1" value="60">
+    </div>
+    <div class="row">
+      <label>detail — finer → <b><span id="veps">0.0040</span></b></label>
+      <input id="eps" type="range" min="0.0012" max="0.015" step="0.0002" value="0.0040" style="direction:rtl">
+    </div>
+    <div class="row" style="margin-bottom:4px">
+      <label style="margin-bottom:7px">表示</label>
+      <div class="toggles">
+        <div class="tg on" data-t="sphere">球面</div>
+        <div class="tg" data-t="flat">平面影</div>
+        <div class="tg" data-t="spin">回転</div>
+      </div>
+    </div>
+    <div class="stat">
+      segments&nbsp;<span id="scount">—</span> · status&nbsp;<span id="status">…</span>
+      <div class="desc" id="desc"></div>
+    </div>
+  </div>
+  <div class="hint">ドラッグで回転 · スクロールでズーム</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ===== complex + Möbius algebra (ported from project's math.js) ===== */
+const p2=(x,y)=>({x,y});
+const add=(a,b)=>({x:a.x+b.x,y:a.y+b.y});
+const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y});
+const mul=(a,f)=>({x:a.x*f,y:a.y*f});
+const len2=a=>a.x*a.x+a.y*a.y;
+const dist2=(a,b)=>len2(sub(a,b));
+const mulc=(a,b)=>({x:a.x*b.x-a.y*b.y,y:a.y*b.x+a.x*b.y});
+const divc=(a,b)=>{const d=len2(b);return {x:(a.x*b.x+a.y*b.y)/d,y:(a.y*b.x-a.x*b.y)/d};};
+const mag=a=>Math.sqrt(len2(a));
+const phase=a=>Math.atan2(a.y,a.x);
+const fromPolar=(m,p)=>p2(m*Math.cos(p),m*Math.sin(p));
+const sqrtc=a=>fromPolar(Math.sqrt(mag(a)),phase(a)/2);
+const det=m=>sub(mulc(m[0],m[3]),mulc(m[1],m[2]));
+const norm=m=>{const s=sqrtc(det(m));return m.map(x=>divc(x,s));};
+const inv=m=>[m[3],mul(m[1],-1),mul(m[2],-1),m[0]];
+const comp=(...a)=>a.reduce((A,B)=>[
+  add(mulc(A[0],B[0]),mulc(A[1],B[2])), add(mulc(A[0],B[1]),mulc(A[1],B[3])),
+  add(mulc(A[2],B[0]),mulc(A[3],B[2])), add(mulc(A[2],B[1]),mulc(A[3],B[3]))]);
+const tr=m=>add(m[0],m[3]);
+function onPt(m,z){ if(!isFinite(z.x)||!isFinite(z.y))return divc(m[0],m[2]);
+  return divc(add(mulc(m[0],z),m[1]),add(mulc(m[2],z),m[3])); }
+function fixed(T){ let m=norm([...T]); const TrT=tr(m),TrT2=tr(comp(m,m));
+  const n=mul(add(TrT,sqrtc(sub(TrT2,p2(4,0)))),0.5), k=mulc(n,n);
+  const st=sqrtc(sub(mulc(TrT,TrT),p2(4,0)));
+  const zp=divc(add(sub(m[0],m[3]),st),mul(m[2],2));
+  const zm=divc(sub(sub(m[0],m[3]),st),mul(m[2],2));
+  return mag(k)>1?[zp,zm]:[zm,zp]; }
+function quad(a,b,c){ const s=sqrtc(sub(mulc(b,b),mul(mulc(a,c),4)));
+  return [divc(add(mul(b,-1),s),mul(a,2)),divc(sub(mul(b,-1),s),mul(a,2))]; }
+const mod4=x=>{while(x<0)x+=4;return x%4;};
+
+/* ===== recipes (ported from recipes.js) — each returns {T,start,dup,ctrl} ===== */
+function grandma(ta,tb){
+  const sol=quad(p2(1,0),mul(mulc(ta,tb),-1),add(mulc(ta,ta),mulc(tb,tb)));
+  const tab=sol[0];
+  const z0=divc(mulc(sub(tab,p2(2,0)),tb),add(sub(mulc(tb,tab),mul(ta,2)),mulc(p2(0,2),tab)));
+  const A=[mul(ta,0.5),
+    divc(add(sub(mulc(ta,tab),mul(tb,2)),p2(0,4)),mulc(add(mul(tab,2),p2(4,0)),z0)),
+    divc(mulc(sub(sub(mulc(ta,tab),mul(tb,2)),p2(0,4)),z0),sub(mul(tab,2),p2(4,0))),
+    mul(ta,0.5)];
+  const B=[mul(sub(tb,p2(0,2)),0.5),mul(tb,0.5),mul(tb,0.5),mul(add(tb,p2(0,2)),0.5)];
+  return {T:[A,B,inv(A),inv(B)],start:[0,3,2,1],dup:'rot180',ctrl:null};
+}
+function gasket(){
+  const A=[p2(1,0),p2(0,0),p2(0,-2),p2(1,0)];
+  const B=[p2(1,-1),p2(1,0),p2(1,0),p2(1,1)];
+  return {T:[A,B,inv(A),inv(B)],start:[0],dup:'rot180',ctrl:null};
+}
+function riley(c){
+  const A=[p2(1,0),p2(0,0),c,p2(1,0)];
+  const B=[p2(1,0),p2(2,0),p2(0,0),p2(1,0)];
+  return {T:[A,B,inv(A),inv(B)],start:[0],dup:'rot180_and_rep_x_2',ctrl:null};
+}
+function maskit(mu){
+  const A=[mu,p2(1,0),p2(1,0),p2(0,0)];        // z -> mu + 1/z
+  const B=[p2(1,0),p2(2,0),p2(0,0),p2(1,0)];   // z -> z + 2
+  return {T:[A,B,inv(A),inv(B)],start:[0],dup:'maskit',ctrl:mu};
+}
+
+/* ===== repetends + duplication (ported from dfs_recipes.html) ===== */
+function repetends(T){ const [a,b,A,B]=T; const f=m=>fixed(m)[0];
+  return [
+    [f(comp(b,A,B,a)),f(a),f(comp(B,A,b,a))],
+    [f(comp(A,B,a,b)),f(b),f(comp(a,B,A,b))],
+    [f(comp(B,a,b,A)),f(A),f(comp(b,a,B,A))],
+    [f(comp(a,b,A,B)),f(B),f(comp(A,b,a,B))]];
+}
+function duplicate(a,dup,ctrl){
+  if(!dup) return [a];
+  if(dup==='rot180') return [a, mul(a,-1)];
+  if(dup==='rot180_and_rep_x_2'){ const o=[];
+    for(let x=-4;x<=4;x+=2){ o.push(add(a,p2(x,0))); o.push(add(mul(a,-1),p2(x,0))); } return o; }
+  if(dup==='maskit'){ const o=[];
+    for(let x=-4;x<=4;x+=2){ o.push(add(a,p2(x,0))); o.push(add(mul(sub(a,ctrl),-1),p2(x,0))); } return o; }
+  return [a];
+}
+
+/* ===== DFS limit set — connects consecutive depth points into the quasicircle ===== */
+function buildLimitSet(rec,maxDepth,eps2){
+  const {T,start,dup,ctrl}=rec;
+  const reps=repetends(T);
+  const seg=[];          // flat list of {x,y} pairs (a,b) = one segment
+  const maxd2=1.0; let aborted=false;
+  function explore(x,prev,level){
+    for(let k=prev+1;k>=prev-1;k--){
+      const iTag=mod4(k); const y=comp(x,T[iTag]); const z=[]; let close=true;
+      for(let i=0;i<reps[iTag].length;i++){
+        z.push(onPt(y,reps[iTag][i]));
+        if(i>0){ const d2=dist2(z[i],z[i-1]);
+          if(!(d2<=eps2)) close=false;
+          if(d2>maxd2 && level>=maxDepth) return -1; }
+      }
+      if(close||level>=maxDepth){
+        if(close){
+          const pd=z.map(zz=>duplicate(zz,dup,ctrl));   // duplicate each depth point
+          for(let j=0;j<pd[0].length;j++)               // for each copy
+            for(let i=0;i<pd.length-1;i++){              // connect consecutive depth pts
+              const a=pd[i][j], b=pd[i+1][j];
+              if(isFinite(a.x)&&isFinite(a.y)&&isFinite(b.x)&&isFinite(b.y)) seg.push(a,b);
+            }
+        }
+      } else if(explore(y,iTag,level+1)===-1) return -1;
+    }
+    return 0;
+  }
+  for(const s of start) if(explore(T[s],s,1)===-1){ aborted=true; break; }
+  return {seg,aborted};
+}
+
+/* ===== stereographic projection plane -> unit sphere (∞ = north pole) ===== */
+function toSphere(z){ const d=z.x*z.x+z.y*z.y+1;
+  return new THREE.Vector3(2*z.x/d,2*z.y/d,(z.x*z.x+z.y*z.y-1)/d); }
+
+/* ===== three.js ===== */
+const stage=document.getElementById('stage');
+const scene=new THREE.Scene();
+const cam=new THREE.PerspectiveCamera(40,innerWidth/innerHeight,0.01,100);
+const renderer=new THREE.WebGLRenderer({antialias:true,alpha:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+stage.appendChild(renderer.domElement);
+scene.add(new THREE.AmbientLight(0xffffff,0.55));
+const k1=new THREE.DirectionalLight(0xfff2da,0.85);k1.position.set(3,4,5);scene.add(k1);
+const k2=new THREE.DirectionalLight(0x5fd3c4,0.4);k2.position.set(-4,-2,-3);scene.add(k2);
+const world=new THREE.Group();scene.add(world);
+
+/* transparent glass sphere */
+const sphere=new THREE.Mesh(new THREE.SphereGeometry(0.992,96,96),
+  new THREE.MeshPhysicalMaterial({color:0x9fc6e8,roughness:0.08,metalness:0,
+    transmission:1.0,thickness:0.6,ior:1.25,transparent:true,opacity:0.08,
+    clearcoat:1.0,clearcoatRoughness:0.1,side:THREE.DoubleSide,depthWrite:false}));
+world.add(sphere);
+world.add(new THREE.LineSegments(
+  new THREE.WireframeGeometry(new THREE.SphereGeometry(1.0,36,18)),
+  new THREE.LineBasicMaterial({color:0x33506f,transparent:true,opacity:0.16,depthWrite:false})));
+function pole(c,z){const m=new THREE.Mesh(new THREE.SphereGeometry(0.02,16,16),
+  new THREE.MeshBasicMaterial({color:c}));m.position.set(0,0,z);world.add(m);}
+pole(0xe8c168,1); pole(0x5fd3c4,-1);
+
+let curveMesh=null, flatMesh=null;
+const curveMat=new THREE.LineBasicMaterial({color:0xf4ede0,transparent:true,opacity:0.95});
+const flatMat =new THREE.LineBasicMaterial({color:0x55708f,transparent:true,opacity:0.35});
+
+/* ===== recipe config: which sliders, labels, ranges, how to build ===== */
+const CONFIG={
+  grandma:{ desc:"Grandma's recipe (Indra's Pearls p.227). 準フックス群の擬円。",
+    p1:{show:true,label:'trace t_a',min:2.05,max:3.0,step:0.005,val:2.40},
+    p2:{show:true,label:'t_b (虚部)',min:-1.0,max:1.0,step:0.005,val:0.34},
+    make:(a,b)=>grandma(p2(a,0.0),p2(2.37,b)) },
+  gasket:{ desc:"Apollonian gasket (p.201). パラメータなしの理想的なガスケット。",
+    p1:{show:false},p2:{show:false},
+    make:()=>gasket() },
+  riley:{ desc:"Riley's recipe (p.258). c を動かすと水平な鎖が変化。",
+    p1:{show:true,label:'c (実部)',min:-0.3,max:0.3,step:0.005,val:0.10},
+    p2:{show:true,label:'c (虚部)',min:0.5,max:1.3,step:0.005,val:0.93},
+    make:(a,b)=>riley(p2(a,b)) },
+  maskit:{ desc:"Maskit recipe (p.259). μ を動かす。μ=2i が理想境界。",
+    p1:{show:true,label:'μ (実部)',min:-0.4,max:0.4,step:0.005,val:0.0},
+    p2:{show:true,label:'μ (虚部)',min:1.6,max:2.2,step:0.005,val:2.0},
+    make:(a,b)=>maskit(p2(a,b)) },
+};
+
+/* ===== UI state ===== */
+let curRecipe='grandma';
+const p1=document.getElementById('p1'),p2el=document.getElementById('p2'),dep=document.getElementById('dep'),eps=document.getElementById('eps');
+const lP1=document.getElementById('l-p1'),lP2=document.getElementById('l-p2');
+const vP1=document.getElementById('v-p1'),vP2=document.getElementById('v-p2'),vdep=document.getElementById('vdep'),veps=document.getElementById('veps');
+const rP1=document.getElementById('r-p1'),rP2=document.getElementById('r-p2');
+const scount=document.getElementById('scount'),statusEl=document.getElementById('status'),descEl=document.getElementById('desc');
+const show={sphere:true,flat:false,spin:false};
+
+function applyRecipeUI(){
+  const c=CONFIG[curRecipe];
+  descEl.textContent=c.desc;
+  for(const [el,row,lab,val,cfg] of [[p1,rP1,lP1,vP1,c.p1],[p2el,rP2,lP2,vP2,c.p2]]){
+    if(cfg.show){ row.classList.remove('hidden');
+      lab.textContent=cfg.label; el.min=cfg.min; el.max=cfg.max; el.step=cfg.step; el.value=cfg.val;
+      val.textContent=(+cfg.val).toFixed(2);
+    } else row.classList.add('hidden');
+  }
+}
+
+function build(){
+  const c=CONFIG[curRecipe];
+  if(c.p1.show) vP1.textContent=(+p1.value).toFixed(2);
+  if(c.p2.show) vP2.textContent=(+p2el.value).toFixed(2);
+  vdep.textContent=dep.value;
+  const epsVal=+eps.value;            // smaller = finer detail
+  veps.textContent=epsVal.toFixed(4);
+  const rec=c.make(+p1.value, +p2el.value);
+  const t0=performance.now();
+  const {seg,aborted}=buildLimitSet(rec,+dep.value,epsVal*epsVal);
+  const ms=(performance.now()-t0)|0;
+  scount.textContent=(seg.length/2)|0;
+  statusEl.textContent=aborted?'aborted (depth↓)':(ms+'ms');
+  statusEl.style.color=aborted?'#e88':'var(--teal)';
+
+  const sPos=[], fPos=[];
+  for(const z of seg){
+    const v=toSphere(z); sPos.push(v.x,v.y,v.z);
+    fPos.push(z.x*0.28, z.y*0.28, -1.0);
+  }
+  if(curveMesh){world.remove(curveMesh);curveMesh.geometry.dispose();}
+  if(flatMesh){world.remove(flatMesh);flatMesh.geometry.dispose();}
+  const g1=new THREE.BufferGeometry();
+  g1.setAttribute('position',new THREE.Float32BufferAttribute(sPos,3));
+  curveMesh=new THREE.LineSegments(g1,curveMat);curveMesh.visible=show.sphere;world.add(curveMesh);
+  const g2=new THREE.BufferGeometry();
+  g2.setAttribute('position',new THREE.Float32BufferAttribute(fPos,3));
+  flatMesh=new THREE.LineSegments(g2,flatMat);flatMesh.visible=show.flat;world.add(flatMesh);
+}
+
+[p1,p2el,dep,eps].forEach(el=>el.addEventListener('input',()=>{clearTimeout(el._t);el._t=setTimeout(build,40);}));
+document.querySelectorAll('.rc').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('.rc').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); curRecipe=b.dataset.r; applyRecipeUI(); build();
+});
+document.querySelectorAll('.tg').forEach(b=>b.onclick=()=>{
+  const k=b.dataset.t; show[k]=!show[k]; b.classList.toggle('on',show[k]);
+  if(curveMesh)curveMesh.visible=show.sphere; if(flatMesh)flatMesh.visible=show.flat;
+});
+
+/* ===== camera orbit ===== */
+let rx=0.5,ry=-0.7,dist=4.2,drag=false,px=0,py=0;
+function place(){cam.position.set(dist*Math.cos(rx)*Math.cos(ry),dist*Math.cos(rx)*Math.sin(ry),dist*Math.sin(rx));
+  cam.up.set(0,0,1);cam.lookAt(0,0,0);}
+renderer.domElement.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;});
+addEventListener('pointerup',()=>drag=false);
+addEventListener('pointermove',e=>{if(!drag)return;ry-=(e.clientX-px)*0.006;rx+=(e.clientY-py)*0.006;
+  rx=Math.max(-1.45,Math.min(1.45,rx));px=e.clientX;py=e.clientY;place();});
+renderer.domElement.addEventListener('wheel',e=>{e.preventDefault();dist*=(1+e.deltaY*0.0009);
+  dist=Math.max(1.7,Math.min(9,dist));place();},{passive:false});
+addEventListener('resize',()=>{cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);});
+
+applyRecipeUI(); build(); place();
+(function loop(){requestAnimationFrame(loop);if(show.spin){ry-=0.0035;place();}renderer.render(scene,cam);})();
+</script>
+</body>
+</html>
