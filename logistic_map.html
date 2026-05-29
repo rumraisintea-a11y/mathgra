@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ロジスティック写像 — ax(1−x)</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+JP:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0d0f;
+    --surface: #141417;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #e8e6e0;
+    --muted: rgba(232,230,224,0.45);
+    --hint: rgba(232,230,224,0.22);
+    --teal: #3ecfa0;
+    --coral: #f07a60;
+    --blue: #6aabef;
+    --amber: #f5c060;
+    --radius: 6px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans JP', sans-serif; }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 28px 32px 32px;
+    gap: 20px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 0.5px solid var(--border2);
+    padding-bottom: 14px;
+  }
+
+  .title-block h1 {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--text);
+  }
+  .title-block p {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 3px;
+    font-family: 'IBM Plex Mono', monospace;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    color: var(--text);
+    background: transparent;
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 7px 14px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .btn:hover { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.22); }
+  .btn:active { transform: scale(0.97); }
+  .btn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .speed-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .speed-group label {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    white-space: nowrap;
+  }
+  input[type=range] {
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--border2);
+    border-radius: 99px;
+    outline: none;
+    width: 80px;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--teal);
+    cursor: pointer;
+  }
+  #speedVal {
+    font-size: 11px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--teal);
+    min-width: 32px;
+  }
+
+  .stats-row {
+    display: flex;
+    gap: 0;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat-cell {
+    padding: 8px 18px;
+    border-right: 0.5px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .stat-cell:last-child { border-right: none; }
+  .stat-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .stat-val {
+    font-size: 15px;
+    font-weight: 500;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--text);
+  }
+  #aStatVal { color: var(--coral); }
+  #lyapStatVal { color: var(--teal); }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    padding: 3px 9px;
+    border-radius: 99px;
+    border: 0.5px solid;
+  }
+  .b-stable { color: #3ecfa0; border-color: rgba(62,207,160,0.35); background: rgba(62,207,160,0.08); }
+  .b-period  { color: #f5c060; border-color: rgba(245,192,96,0.35);  background: rgba(245,192,96,0.08);  }
+  .b-chaos   { color: #f07a60; border-color: rgba(240,122,96,0.35);  background: rgba(240,122,96,0.08);  }
+
+  .a-track {
+    position: relative;
+    height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  #aFill {
+    height: 100%;
+    border-radius: 99px;
+    background: var(--coral);
+    transition: width 0.05s linear;
+    width: 0%;
+  }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    flex: 1;
+  }
+
+  .chart-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px 14px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .chart-card.full { grid-column: 1 / -1; }
+
+  .card-label {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  canvas { display: block; width: 100%; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title-block">
+    <h1>ロジスティック写像 &nbsp; f(x) = ax(1−x)</h1>
+    <p>パラメータ a が 1 → 4 へ変化するアニメーション</p>
+  </div>
+  <div class="controls">
+    <button class="btn" id="btnPlay">
+      <svg id="iconPlay" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="4" y="3" width="3" height="10" rx="1"/>
+        <rect x="9" y="3" width="3" height="10" rx="1"/>
+      </svg>
+      <span id="btnLabel">一時停止</span>
+    </button>
+    <button class="btn" id="btnReset">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M13 8A5 5 0 1 1 8 3h3m0 0v3m0-3H8"/>
+      </svg>
+      リセット
+    </button>
+    <div class="speed-group">
+      <label>速度</label>
+      <input type="range" id="speedSlider" min="0.2" max="5" step="0.1" value="1">
+      <span id="speedVal">×1.0</span>
+    </div>
+  </div>
+</header>
+
+<div class="stats-row">
+  <div class="stat-cell">
+    <span class="stat-label">パラメータ a</span>
+    <span class="stat-val" id="aStatVal">1.000</span>
+  </div>
+  <div class="stat-cell">
+    <span class="stat-label">リアプノフ指数 λ</span>
+    <span class="stat-val" id="lyapStatVal">—</span>
+  </div>
+  <div class="stat-cell">
+    <span class="stat-label">状態</span>
+    <span class="stat-val" id="regimeCell"><span class="badge b-stable">安定固定点</span></span>
+  </div>
+  <div class="stat-cell" style="flex:1">
+    <span class="stat-label">進行状況</span>
+    <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
+      <div class="a-track" style="flex:1"><div id="aFill"></div></div>
+      <span style="font-size:11px;font-family:'IBM Plex Mono',monospace;color:var(--muted)">a=4</span>
+    </div>
+  </div>
+</div>
+
+<div class="charts-grid">
+  <div class="chart-card full">
+    <div class="card-label">分岐図 — 累積スキャン</div>
+    <canvas id="bifCanvas"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="card-label">時系列 xₙ</div>
+    <canvas id="tsCanvas"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="card-label">クモの巣図（コブウェブ）</div>
+    <canvas id="webCanvas"></canvas>
+  </div>
+</div>
+
+<script>
+const C = {
+  teal:   '#3ecfa0',
+  coral:  '#f07a60',
+  blue:   '#6aabef',
+  diag:   'rgba(200,200,200,0.2)',
+  axis:   'rgba(255,255,255,0.08)',
+  txt:    'rgba(232,230,224,0.35)',
+  web:    'rgba(62,207,160,0.55)',
+  bifDot: 'rgba(62,207,160,0.38)',
+  curLine:'rgba(240,122,96,0.8)',
+  curFill:'rgba(240,122,96,0.07)',
+};
+
+const tsEl  = document.getElementById('tsCanvas');
+const webEl = document.getElementById('webCanvas');
+const bifEl = document.getElementById('bifCanvas');
+
+function setDPR(el, w, h) {
+  const d = window.devicePixelRatio || 1;
+  el.width  = w * d;
+  el.height = h * d;
+  el.style.width  = w + 'px';
+  el.style.height = h + 'px';
+  const cx = el.getContext('2d');
+  cx.scale(d, d);
+  return { cx, w, h };
+}
+
+const PAD = { l:36, r:12, t:10, b:28 };
+
+function f(a, x) { return a * x * (1 - x); }
+
+function lyap(a, x0=0.5, n=600) {
+  let x = x0, s = 0;
+  for (let i = 0; i < n; i++) {
+    const d = Math.abs(a * (1 - 2 * x));
+    s += Math.log(d < 1e-12 ? 1e-12 : d);
+    x = f(a, x);
+  }
+  return s / n;
+}
+
+function regime(a) {
+  if (a < 3.0)     return { lbl: '安定固定点', cls: 'b-stable' };
+  if (a < 3.5699)  return { lbl: '周期サイクル', cls: 'b-period' };
+  return { lbl: 'カオス', cls: 'b-chaos' };
+}
+
+function drawAxes(cx, w, h, xlbl) {
+  const { l, r, t, b } = PAD, iW = w - l - r, iH = h - t - b;
+  cx.strokeStyle = C.axis; cx.lineWidth = 0.5;
+  cx.strokeRect(l, t, iW, iH);
+  cx.fillStyle = C.txt; cx.font = '10px "IBM Plex Mono",monospace';
+  cx.textAlign = 'right';
+  ['1.0', '0.5', '0.0'].forEach((v, i) => {
+    const y = t + i * iH / 2;
+    cx.fillText(v, l - 5, y + 3.5);
+    cx.strokeStyle = C.axis; cx.lineWidth = 0.5;
+    cx.beginPath(); cx.moveTo(l, y); cx.lineTo(l + iW, y); cx.stroke();
+  });
+  cx.textAlign = 'center';
+  cx.fillText(xlbl, l + iW / 2, h - 5);
+}
+
+let tsDims, webDims, bifDims;
+
+function initSizes() {
+  const bRect = bifEl.parentElement.getBoundingClientRect();
+  const bW = Math.floor(bRect.width - 28);
+  const bH = Math.max(160, Math.floor(bW * 0.28));
+  bifDims = setDPR(bifEl, bW, bH);
+
+  const cCards = document.querySelectorAll('.chart-card:not(.full)');
+  const cRect = cCards[0].getBoundingClientRect();
+  const cW = Math.floor(cRect.width - 28);
+  const cH = Math.max(160, Math.floor(cW * 0.65));
+  tsDims  = setDPR(tsEl,  cW, cH);
+  webDims = setDPR(webEl, cW, cH);
+}
+
+const BIF_STEPS = 1200, BIF_DROP = 150;
+const aMin = 1, aMax = 4;
+
+const bifOffscreen = document.createElement('canvas');
+let bifCtx;
+
+function initBif() {
+  const { w, h } = bifDims;
+  const dpr = window.devicePixelRatio || 1;
+  bifOffscreen.width  = w * dpr;
+  bifOffscreen.height = h * dpr;
+  bifCtx = bifOffscreen.getContext('2d');
+  bifCtx.scale(dpr, dpr);
+  bifCtx.fillStyle = C.bifDot;
+  const { l, r, t, b } = PAD, iW = w - l - r, iH = h - t - b;
+  for (let i = 0; i < BIF_STEPS; i++) {
+    const a = aMin + (i / (BIF_STEPS - 1)) * (aMax - aMin);
+    const px = l + (i / (BIF_STEPS - 1)) * iW;
+    let x = 0.5;
+    for (let j = 0; j < 300; j++) x = f(a, x);
+    for (let j = 0; j < BIF_DROP; j++) {
+      x = f(a, x);
+      const py = t + (1 - x) * iH;
+      bifCtx.fillRect(px, py, 1.2, 1.2);
+    }
+  }
+}
+
+function drawBif(a) {
+  const { cx, w, h } = bifDims;
+  const { l, r, t, b } = PAD, iW = w - l - r, iH = h - t - b;
+  cx.clearRect(0, 0, w, h);
+  cx.strokeStyle = C.axis; cx.lineWidth = 0.5;
+  cx.strokeRect(l, t, iW, iH);
+  cx.fillStyle = C.txt; cx.font = '10px "IBM Plex Mono",monospace';
+  cx.textAlign = 'right';
+  ['1.0', '0.5', '0.0'].forEach((v, i) => { cx.fillText(v, l - 5, t + i * iH / 2 + 3.5); });
+  cx.textAlign = 'center';
+  [1, 2, 3, 4].forEach(v => {
+    const px = l + ((v - aMin) / (aMax - aMin)) * iW;
+    cx.fillText(v, px, h - 5);
+    cx.strokeStyle = C.axis; cx.lineWidth = 0.5;
+    cx.beginPath(); cx.moveTo(px, t); cx.lineTo(px, t + iH); cx.stroke();
+  });
+  cx.fillStyle = C.txt; cx.textAlign = 'center';
+  cx.fillText('a', l + iW / 2, h - 5);
+
+  cx.drawImage(bifOffscreen, 0, 0, w, h);
+
+  const curPx = l + ((a - aMin) / (aMax - aMin)) * iW;
+  cx.fillStyle = C.curFill;
+  cx.fillRect(l, t, curPx - l, iH);
+  cx.strokeStyle = C.curLine; cx.lineWidth = 1.5;
+  cx.beginPath(); cx.moveTo(curPx, t); cx.lineTo(curPx, t + iH); cx.stroke();
+}
+
+const N_TS = 100;
+let tsBuffer = [];
+
+function drawTS(a) {
+  const { cx, w, h } = tsDims;
+  cx.clearRect(0, 0, w, h);
+  drawAxes(cx, w, h, 'n');
+  const { l, r, t, b } = PAD, iW = w - l - r, iH = h - t - b;
+  const N = tsBuffer.length;
+  if (N < 2) return;
+  cx.strokeStyle = C.teal; cx.lineWidth = 1.5; cx.beginPath();
+  tsBuffer.forEach((v, i) => {
+    const px = l + (i / (N_TS - 1)) * iW;
+    const py = t + (1 - v) * iH;
+    i === 0 ? cx.moveTo(px, py) : cx.lineTo(px, py);
+  });
+  cx.stroke();
+  const last = tsBuffer[N - 1];
+  const lpx = l + ((N - 1) / (N_TS - 1)) * iW;
+  cx.fillStyle = C.coral;
+  cx.beginPath(); cx.arc(lpx, t + (1 - last) * iH, 4, 0, 2 * Math.PI); cx.fill();
+}
+
+function drawWeb(a) {
+  const { cx, w, h } = webDims;
+  cx.clearRect(0, 0, w, h);
+  const { l, r, t, b } = PAD, iW = w - l - r, iH = h - t - b;
+  const px = v => l + v * iW, py = v => t + (1 - v) * iH;
+  drawAxes(cx, w, h, 'xₙ');
+
+  cx.strokeStyle = C.diag; cx.lineWidth = 0.8; cx.setLineDash([4, 4]);
+  cx.beginPath(); cx.moveTo(px(0), py(0)); cx.lineTo(px(1), py(1)); cx.stroke();
+  cx.setLineDash([]);
+
+  cx.strokeStyle = C.blue; cx.lineWidth = 1.8; cx.beginPath();
+  for (let i = 0; i <= 300; i++) {
+    const xi = i / 300;
+    i === 0 ? cx.moveTo(px(xi), py(f(a, xi))) : cx.lineTo(px(xi), py(f(a, xi)));
+  }
+  cx.stroke();
+
+  let x = tsBuffer.length ? tsBuffer[tsBuffer.length - 1] : 0.5;
+  cx.strokeStyle = C.web; cx.lineWidth = 1; cx.beginPath();
+  cx.moveTo(px(x), py(x));
+  for (let i = 0; i < 70; i++) {
+    const fx = f(a, x);
+    cx.lineTo(px(x), py(fx));
+    cx.lineTo(px(fx), py(fx));
+    x = fx;
+  }
+  cx.stroke();
+
+  cx.fillStyle = C.coral;
+  cx.beginPath(); cx.arc(px(x), py(x), 4, 0, 2 * Math.PI); cx.fill();
+}
+
+let curA = 1.0, curX = 0.5, playing = true, lastTime = 0, speed = 1.0;
+
+function initState() {
+  curA = 1.0; curX = 0.5; tsBuffer = [];
+  for (let i = 0; i < N_TS; i++) { curX = f(1, curX); tsBuffer.push(curX); }
+}
+
+function updateStats() {
+  document.getElementById('aStatVal').textContent = curA.toFixed(3);
+  document.getElementById('aFill').style.width = ((curA - aMin) / (aMax - aMin) * 100).toFixed(1) + '%';
+  const lx = lyap(curA);
+  document.getElementById('lyapStatVal').textContent = lx.toFixed(4);
+  document.getElementById('lyapStatVal').style.color = lx > 0 ? '#f07a60' : '#3ecfa0';
+  const rg = regime(curA);
+  document.getElementById('regimeCell').innerHTML = `<span class="badge ${rg.cls}">${rg.lbl}</span>`;
+}
+
+function renderAll() {
+  drawBif(curA);
+  drawTS(curA);
+  drawWeb(curA);
+  updateStats();
+}
+
+function tick(now) {
+  if (playing) {
+    const dt = Math.min((now - lastTime) / 1000, 0.1);
+    lastTime = now;
+    const da = dt * speed * 0.33;
+    curA = Math.min(4.0, curA + da);
+    curX = f(curA, curX);
+    tsBuffer.push(curX);
+    if (tsBuffer.length > N_TS) tsBuffer.shift();
+    renderAll();
+    if (curA >= 4.0) {
+      playing = false;
+      setPlayIcon(false);
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+function setPlayIcon(isPlaying) {
+  const svg = document.getElementById('iconPlay');
+  const lbl = document.getElementById('btnLabel');
+  if (isPlaying) {
+    svg.innerHTML = `<rect x="4" y="3" width="3" height="10" rx="1"/><rect x="9" y="3" width="3" height="10" rx="1"/>`;
+    lbl.textContent = '一時停止';
+  } else {
+    svg.innerHTML = `<polygon points="4,3 13,8 4,13" stroke-linejoin="round"/>`;
+    lbl.textContent = '再生';
+  }
+}
+
+document.getElementById('btnPlay').addEventListener('click', () => {
+  if (curA >= 4 && !playing) {
+    initState();
+    renderAll();
+  }
+  playing = !playing;
+  if (playing) { lastTime = performance.now(); }
+  setPlayIcon(playing);
+});
+
+document.getElementById('btnReset').addEventListener('click', () => {
+  playing = false;
+  initState();
+  renderAll();
+  setPlayIcon(false);
+});
+
+document.getElementById('speedSlider').addEventListener('input', e => {
+  speed = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = '×' + speed.toFixed(1);
+});
+
+window.addEventListener('resize', () => {
+  initSizes();
+  initBif();
+  renderAll();
+});
+
+initSizes();
+initBif();
+initState();
+renderAll();
+lastTime = performance.now();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
