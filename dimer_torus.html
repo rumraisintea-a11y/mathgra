@@ -8,39 +8,40 @@
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root { --bg:#0e0e12; --panel:#17171d; --border:#33333d; --accent1:#e0a82e;
-    --accent2:#4db8ff; --text:#e6e6ea; --text-dim:#8a8a96; --font:'JetBrains Mono',monospace; }
+    --accent2:#4db8ff; --accent3:#c084fc; --text:#e6e6ea; --text-dim:#8a8a96; --font:'JetBrains Mono',monospace; }
   body { background:var(--bg); color:var(--text); font-family:var(--font);
     height:100vh; display:flex; flex-direction:column; overflow:hidden; }
-  header { display:flex; align-items:center; gap:20px; padding:10px 20px;
-    border-bottom:1px solid var(--border); background:var(--panel); flex-shrink:0; }
-  header h1 { font-size:13px; font-weight:600; letter-spacing:.15em;
-    color:var(--accent1); text-transform:uppercase; }
-  .controls { display:flex; align-items:center; gap:18px; flex-wrap:wrap; flex:1; }
-  .ctrl-group { display:flex; align-items:center; gap:8px; font-size:11px;
+  header { display:flex; align-items:center; gap:16px; padding:8px 16px;
+    border-bottom:1px solid var(--border); background:var(--panel); flex-shrink:0; flex-wrap:wrap; }
+  header h1 { font-size:12px; font-weight:600; letter-spacing:.15em;
+    color:var(--accent1); text-transform:uppercase; white-space:nowrap; }
+  .controls { display:flex; align-items:center; gap:14px; flex-wrap:wrap; flex:1; }
+  .ctrl-group { display:flex; align-items:center; gap:7px; font-size:11px;
     color:var(--text-dim); letter-spacing:.05em; }
   .ctrl-group label { white-space:nowrap; }
-  input[type=range] { -webkit-appearance:none; width:90px; height:3px;
+  input[type=range] { -webkit-appearance:none; width:80px; height:3px;
     background:var(--border); border-radius:2px; outline:none; cursor:pointer; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px;
     border-radius:50%; background:var(--accent2); cursor:pointer; }
-  .val-badge { font-size:11px; color:var(--accent2); min-width:36px; }
-  button { font-family:var(--font); font-size:11px; letter-spacing:.08em; padding:5px 14px;
+  .val-badge { font-size:11px; color:var(--accent2); min-width:32px; }
+  button { font-family:var(--font); font-size:11px; letter-spacing:.08em; padding:4px 12px;
     background:transparent; border:1px solid var(--border); color:var(--text); cursor:pointer;
     transition:border-color .15s,color .15s,background .15s; text-transform:uppercase; }
   button:hover { border-color:var(--accent1); color:var(--accent1); }
   button.active { border-color:var(--accent1); color:#fff; background:var(--accent1); }
+  button.active-q { border-color:var(--accent3); color:#fff; background:var(--accent3); }
   .seg { display:flex; gap:0; }
   .seg button { border-right-width:0; }
   .seg button:last-child { border-right-width:1px; }
-  .info { font-size:10px; color:var(--text-dim); margin-left:auto; white-space:nowrap; }
+  .info { font-size:10px; color:var(--text-dim); white-space:nowrap; }
   #canvas-wrap { flex:1; position:relative; overflow:hidden; }
   canvas#c3d { display:block; width:100%; height:100%; }
   .hint { position:absolute; bottom:12px; right:14px; font-size:10px;
     color:var(--text-dim); pointer-events:none; line-height:1.7; text-align:right; }
   #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
     background:var(--bg); font-size:12px; color:var(--text-dim); letter-spacing:.1em;
-    pointer-events:none; transition:opacity .4s; }
-  #loading.hidden { opacity:0; }
+    pointer-events:none; transition:opacity .4s; z-index:5; }
+  #loading.hidden { opacity:0; pointer-events:none; }
 </style>
 </head>
 <body>
@@ -63,11 +64,19 @@
     <div class="ctrl-group">
       <label>REPEAT</label>
       <input type="range" id="rep" min="1" max="10" value="4" step="1">
-      <span class="val-badge" id="rep-val">4&times;4</span>
+      <span class="val-badge" id="rep-val">4×4</span>
     </div>
     <div class="ctrl-group">
       <label>SPEED</label>
       <input type="range" id="auto-rot" min="0" max="10" value="2" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>VIEW</label>
+      <div class="seg" id="view-seg">
+        <button data-view="dimer" class="active">Dimer</button>
+        <button data-view="quiver">Quiver</button>
+        <button data-view="both">Both</button>
+      </div>
     </div>
     <span class="info" id="match-info"></span>
   </div>
@@ -80,135 +89,214 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
-  let torusR = 2.8, autoSpeed = 2, latIndex = 0, rep = 4;
+  let torusR=2.8, autoSpeed=2, latIndex=0, rep=4;
+  let viewMode='dimer'; // 'dimer' | 'quiver' | 'both'
 
-  const wrap = document.getElementById('canvas-wrap');
+  const wrap   = document.getElementById('canvas-wrap');
   const canvas = document.getElementById('c3d');
-  const loading = document.getElementById('loading');
+  const loading= document.getElementById('loading');
 
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
   renderer.setSize(wrap.clientWidth, wrap.clientHeight);
-  renderer.setClearColor(0x0e0e12, 1);
+  renderer.setClearColor(0x0e0e12,1);
 
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth / wrap.clientHeight, 0.01, 200);
-  camera.position.set(0, 0, 8);
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth/wrap.clientHeight, 0.01, 200);
+  camera.position.set(0,0,8);
 
-  scene.add(new THREE.AmbientLight(0xffffff, 0.75));
-  const dl1 = new THREE.DirectionalLight(0xffffff, 0.9); dl1.position.set(6,9,6); scene.add(dl1);
-  const dl2 = new THREE.DirectionalLight(0x88aaff, 0.4); dl2.position.set(-6,-4,-6); scene.add(dl2);
+  scene.add(new THREE.AmbientLight(0xffffff,0.75));
+  const dl1=new THREE.DirectionalLight(0xffffff,0.9); dl1.position.set(6,9,6); scene.add(dl1);
+  const dl2=new THREE.DirectionalLight(0x88aaff,0.4); dl2.position.set(-6,-4,-6); scene.add(dl2);
 
-  const group = new THREE.Group();
-  scene.add(group);
+  const group=new THREE.Group(); scene.add(group);
 
-  // ---- 操作 ----
-  let isDrag=false, isShift=false, px=0, py=0;
-  let rotX=0.35, rotY=0.55, zoom=8, panX=0, panY=0;
-  canvas.addEventListener('mousedown', e=>{ isDrag=true; px=e.clientX; py=e.clientY; isShift=e.shiftKey; });
-  window.addEventListener('mousemove', e=>{
-    if(!isDrag) return;
-    const dx=e.clientX-px, dy=e.clientY-py;
-    if(isShift){ panX+=dx*0.005; panY-=dy*0.005; } else { rotY+=dx*0.01; rotX+=dy*0.01; }
-    px=e.clientX; py=e.clientY;
+  // ---- mouse / touch ----
+  let isDrag=false,isShift=false,px=0,py=0;
+  let rotX=0.35,rotY=0.55,zoom=8,panX=0,panY=0;
+  canvas.addEventListener('mousedown',e=>{isDrag=true;px=e.clientX;py=e.clientY;isShift=e.shiftKey;});
+  window.addEventListener('mousemove',e=>{
+    if(!isDrag)return;
+    const dx=e.clientX-px,dy=e.clientY-py;
+    if(isShift){panX+=dx*0.005;panY-=dy*0.005;}else{rotY+=dx*0.01;rotX+=dy*0.01;}
+    px=e.clientX;py=e.clientY;
   });
-  window.addEventListener('mouseup', ()=>isDrag=false);
-  canvas.addEventListener('wheel', e=>{ zoom=Math.max(2,Math.min(20,zoom+e.deltaY*0.01)); e.preventDefault(); }, {passive:false});
-  canvas.addEventListener('touchstart', e=>{ isDrag=true; px=e.touches[0].clientX; py=e.touches[0].clientY; }, {passive:true});
-  canvas.addEventListener('touchmove', e=>{
-    if(!isDrag) return;
-    rotY+=(e.touches[0].clientX-px)*0.01; rotX+=(e.touches[0].clientY-py)*0.01;
-    px=e.touches[0].clientX; py=e.touches[0].clientY; e.preventDefault();
-  }, {passive:false});
-  canvas.addEventListener('touchend', ()=>isDrag=false);
+  window.addEventListener('mouseup',()=>isDrag=false);
+  canvas.addEventListener('wheel',e=>{zoom=Math.max(2,Math.min(20,zoom+e.deltaY*0.01));e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchstart',e=>{isDrag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
+  canvas.addEventListener('touchmove',e=>{
+    if(!isDrag)return;
+    rotY+=(e.touches[0].clientX-px)*0.01;rotX+=(e.touches[0].clientY-py)*0.01;
+    px=e.touches[0].clientX;py=e.touches[0].clientY;e.preventDefault();
+  },{passive:false});
+  canvas.addEventListener('touchend',()=>isDrag=false);
 
-  // ---- トーラス座標 ----
-  function torusPos(u, v, R, r){
-    const a = u * Math.PI * 2;
-    const b = v * Math.PI * 2;
-    const x = (R + r * Math.cos(b)) * Math.cos(a);
-    const y = (R + r * Math.cos(b)) * Math.sin(a);
-    const z = r * Math.sin(b);
-    return new THREE.Vector3(x, y, z);
+  // ---- torus coords ----
+  function torusPos(u,v,R,r){
+    const a=u*Math.PI*2, b=v*Math.PI*2;
+    return new THREE.Vector3(
+      (R+r*Math.cos(b))*Math.cos(a),
+      (R+r*Math.cos(b))*Math.sin(a),
+      r*Math.sin(b)
+    );
   }
 
-  /*
-    単位タイル定義。
-    sites: [{x,y, color?}]  x,y はタイル内座標[0,1)。
-           color が無い場合はセルのパリティ (gi+gj)%2 で白黒を決める。
-    bonds: [{a,b,du,dv}]  サイト a から (隣タイル du,dv の) サイト b への辺。
-           各無向辺は片側からのみ列挙するが、必ず両端の頂点が
-           正しい次数になるよう全方向を網羅する。
-    正方格子=各頂点 次数4 / 六角格子=各頂点 次数3。
-  */
+  // ---- tile definitions ----
   function tile(type){
     if(type===0){
-      // 模型1: 正方格子 (IMG_1322)。1セル1サイト。
-      // 白黒はチェッカーボード彩色 (gi+gj のパリティ)。
-      // 各頂点から +x と +y の隣へ辺を張る → 反対側の頂点には
-      // -x,-y 側から辺が来るので、全頂点が上下左右の次数4になる。
       return {
         byParity:true,
-        sites:[{x:0.5, y:0.5}],
-        bonds:[
-          {a:0,b:0,du:1,dv:0},   // → 右の隣セル（水平辺）
-          {a:0,b:0,du:0,dv:1},   // → 上の隣セル（垂直辺）
-        ]
+        sites:[{x:0.5,y:0.5}],
+        bonds:[{a:0,b:0,du:1,dv:0},{a:0,b:0,du:0,dv:1}]
       };
     }
     if(type===1){
-      // 模型2: 六角格子 honeycomb (IMG_1321) — flat-top 配置。
-      // 矩形4サイトセルで正しい六角形を平行移動だけでタイル化。
-      // 模型3(pointy-top)の x,y を入れ替えた向き。各頂点 次数3。
       return {
         sites:[
-          {x:0.000, y:0.000, color:0},
-          {x:0.333, y:0.000, color:1},
-          {x:0.500, y:0.500, color:0},
-          {x:0.833, y:0.500, color:1},
+          {x:0.000,y:0.000,color:0},{x:0.333,y:0.000,color:1},
+          {x:0.500,y:0.500,color:0},{x:0.833,y:0.500,color:1},
         ],
         bonds:[
-          {a:0,b:3,du:-1,dv:-1},
-          {a:0,b:3,du:-1,dv:0},
-          {a:0,b:1,du:0, dv:0},
-          {a:1,b:2,du:0, dv:-1},
-          {a:1,b:2,du:0, dv:0},
-          {a:2,b:3,du:0, dv:0},
+          {a:0,b:3,du:-1,dv:-1},{a:0,b:3,du:-1,dv:0},{a:0,b:1,du:0,dv:0},
+          {a:1,b:2,du:0,dv:-1},{a:1,b:2,du:0,dv:0},{a:2,b:3,du:0,dv:0},
         ]
       };
     }
-    // 模型3: 六角格子+縦の鎖 (IMG_1326)。基本領域は6サイト。
-    // 画像から検出した6頂点。中央を縦に貫く辺(rung)で結ばれる
-    // Wtop(0) と Bbot(4) が次数4、残り4頂点が次数3。
     return {
       sites:[
-        {x:0.49, y:0.85, color:0},  // 0 Wtop  (次数4)
-        {x:0.15, y:0.85, color:1},  // 1 BtopL
-        {x:0.15, y:0.50, color:0},  // 2 Wleft
-        {x:0.84, y:0.50, color:1},  // 3 Bright
-        {x:0.50, y:0.16, color:1},  // 4 Bbot  (次数4)
-        {x:0.84, y:0.16, color:0},  // 5 Wbotr
+        {x:0.49,y:0.85,color:0},{x:0.15,y:0.85,color:1},
+        {x:0.15,y:0.50,color:0},{x:0.84,y:0.50,color:1},
+        {x:0.50,y:0.16,color:1},{x:0.84,y:0.16,color:0},
       ],
       bonds:[
-        // セル内
-        {a:0,b:1,du:0, dv:0},
-        {a:0,b:3,du:0, dv:0},
-        {a:0,b:4,du:0, dv:0},   // 縦の rung (Wtop-Bbot)
-        {a:1,b:2,du:0, dv:0},
-        {a:2,b:4,du:0, dv:0},
-        {a:3,b:5,du:0, dv:0},
-        {a:4,b:5,du:0, dv:0},
-        // 隣接セルへ
-        {a:0,b:4,du:0, dv:1},   // rung の周期方向 (Wtop ↑ 上セルの Bbot)
-        {a:1,b:5,du:-1,dv:1},
-        {a:2,b:3,du:-1,dv:0},
+        {a:0,b:1,du:0,dv:0},{a:0,b:3,du:0,dv:0},{a:0,b:4,du:0,dv:0},
+        {a:1,b:2,du:0,dv:0},{a:2,b:4,du:0,dv:0},{a:3,b:5,du:0,dv:0},
+        {a:4,b:5,du:0,dv:0},
+        {a:0,b:4,du:0,dv:1},{a:1,b:5,du:-1,dv:1},{a:2,b:3,du:-1,dv:0},
       ]
     };
   }
 
+  // ================================================================
+  // Quiver computation via half-edge face traversal
+  // ================================================================
+  function computeQuiver(T, N){
+    const wN=k=>((k%N)+N)%N;
+
+    // サイト位置と色
+    const sitePos={};
+    for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
+      for(let s=0;s<T.sites.length;s++){
+        const st=T.sites[s];
+        const color=T.byParity?((wN(gi)+wN(gj))%2):st.color;
+        sitePos[`${wN(gi)},${wN(gj)},${s}`]={
+          u:(wN(gi)+st.x)/N, v:(wN(gj)+st.y)/N, color
+        };
+      }
+
+    // 全辺（最短ラップ差分付き）
+    const edges=[];
+    for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
+      for(const bd of T.bonds){
+        const ka=`${wN(gi)},${wN(gj)},${bd.a}`;
+        const kb=`${wN(gi+bd.du)},${wN(gj+bd.dv)},${bd.b}`;
+        const pa=sitePos[ka], pb=sitePos[kb];
+        if(!pa||!pb) continue;
+        let du=pb.u-pa.u, dv=pb.v-pa.v;
+        du-=Math.round(du); dv-=Math.round(dv);
+        edges.push({ka,kb,pa,pb,du,dv});
+      }
+
+    // ハーフエッジ構築（重複排除）
+    const heMap=new Map();
+    for(const e of edges){
+      const k_ab=e.ka+'|'+e.kb, k_ba=e.kb+'|'+e.ka;
+      if(!heMap.has(k_ab)) heMap.set(k_ab,{from:e.ka,to:e.kb,du: e.du,dv: e.dv});
+      if(!heMap.has(k_ba)) heMap.set(k_ba,{from:e.kb,to:e.ka,du:-e.du,dv:-e.dv});
+    }
+    const halfEdges=[...heMap.values()];
+    const heIndex={}; halfEdges.forEach((he,i)=>{ heIndex[he.from+'|'+he.to]=i; });
+
+    // 各頂点のアウトハーフエッジを角度順ソート
+    const outEdges={};
+    halfEdges.forEach((he,i)=>{
+      if(!outEdges[he.from]) outEdges[he.from]=[];
+      outEdges[he.from].push({idx:i, ang:Math.atan2(he.dv,he.du)});
+    });
+    for(const k in outEdges) outEdges[k].sort((a,b)=>a.ang-b.ang);
+
+    // next half-edge（face traversal: twin → 反時計回り次）
+    const nextHE=new Int32Array(halfEdges.length).fill(-1);
+    halfEdges.forEach((he,i)=>{
+      const twinIdx=heIndex[he.to+'|'+he.from];
+      if(twinIdx===undefined) return;
+      const outB=outEdges[he.to];
+      if(!outB) return;
+      const pos=outB.findIndex(x=>x.idx===twinIdx);
+      if(pos<0) return;
+      // 角度昇順リストの中で「1つ前」= 反時計回り方向の次
+      nextHE[i]=outB[(pos-1+outB.length)%outB.length].idx;
+    });
+
+    // 面列挙
+    const faceOf=new Int32Array(halfEdges.length).fill(-1);
+    const faces=[];
+    for(let start=0;start<halfEdges.length;start++){
+      if(faceOf[start]>=0||nextHE[start]<0) continue;
+      const fid=faces.length;
+      const cycle=[];
+      let cur=start,steps=0;
+      while(faceOf[cur]<0&&steps<halfEdges.length){
+        faceOf[cur]=fid; cycle.push(cur);
+        cur=nextHE[cur]; steps++;
+        if(cur<0) break;
+      }
+      if(cycle.length<2) continue;
+      // 面の重心 (u,v) — ラップを考慮して最初の点を基準に累積
+      const he0=halfEdges[cycle[0]];
+      const u0=sitePos[he0.from].u, v0=sitePos[he0.from].v;
+      let su=0,sv=0;
+      cycle.forEach(hi=>{
+        const sp=sitePos[halfEdges[hi].from];
+        let du=sp.u-u0, dv=sp.v-v0;
+        du-=Math.round(du); dv-=Math.round(dv);
+        su+=u0+du; sv+=v0+dv;
+      });
+      const cu=(su/cycle.length+1)%1;
+      const cv=(sv/cycle.length+1)%1;
+      faces.push({cycle, u:cu, v:cv});
+    }
+
+    // 矢印：各辺について隣接2面を取得し白→黒の向き規則で矢印を向ける
+    // 向き規則: 辺を (白→黒) の向きに見たとき、左の面がtail・右の面がhead
+    // ハーフエッジ (白→黒) の属する面 = tail
+    // ハーフエッジ (黒→白) の属する面 = head
+    const arrows=[];
+    for(const e of edges){
+      const pa=sitePos[e.ka], pb=sitePos[e.kb];
+      const i_ab=heIndex[e.ka+'|'+e.kb];
+      const i_ba=heIndex[e.kb+'|'+e.ka];
+      if(i_ab===undefined||i_ba===undefined) continue;
+      const f_ab=faceOf[i_ab], f_ba=faceOf[i_ba];
+      if(f_ab<0||f_ba<0||f_ab===f_ba) continue;
+      let tail,head;
+      if(pa.color===0&&pb.color===1){ tail=f_ab; head=f_ba; }
+      else { tail=f_ba; head=f_ab; }
+      // 矢印の中点 = 辺の中点 (UV)
+      let mu=pa.u+e.du*0.5, mv=pa.v+e.dv*0.5;
+      mu=(mu+1)%1; mv=(mv+1)%1;
+      arrows.push({tail, head, mu, mv});
+    }
+
+    return {faces, arrows, sitePos, halfEdges, faceOf};
+  }
+
+  // ================================================================
+  // Build 3D scene
+  // ================================================================
   function disposeGroup(){
     while(group.children.length){
-      const o = group.children[0];
+      const o=group.children[0];
       if(o.geometry) o.geometry.dispose();
       if(o.material) o.material.dispose();
       group.remove(o);
@@ -220,103 +308,215 @@
     setTimeout(()=>{
       disposeGroup();
       const R=torusR, r=torusR*0.38;
-      const T = tile(latIndex);
-      // 正方格子(byParity)はチェッカーボード彩色が継ぎ目で破綻しないよう N を偶数に。
-      const N = T.byParity ? (rep%2 ? rep+1 : rep) : rep;
+      const T=tile(latIndex);
+      const N=T.byParity?(rep%2?rep+1:rep):rep;
+      const wN=k=>((k%N)+N)%N;
 
       // 半透明トーラス面
-      const surf = new THREE.Mesh(
-        new THREE.TorusGeometry(R, r, 120, 240),
-        new THREE.MeshPhongMaterial({ color:0x223044, shininess:6,
-          transparent:true, opacity:0.15, side:THREE.DoubleSide, depthWrite:false })
+      const surf=new THREE.Mesh(
+        new THREE.TorusGeometry(R,r,120,240),
+        new THREE.MeshPhongMaterial({color:0x223044,shininess:6,
+          transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false})
       );
       group.add(surf);
 
-      const wrapN=(k)=>((k%N)+N)%N;
-      const key=(gi,gj,s)=>`${wrapN(gi)},${wrapN(gj)},${s}`;
-      const siteUV=(gi,gj,s)=>{
+      // ---- dimer グラフ ----
+      const showDimer=(viewMode==='dimer'||viewMode==='both');
+      const showQuiver=(viewMode==='quiver'||viewMode==='both');
+      const dimerOpacity=showQuiver&&!showDimer?0.0:showQuiver?0.25:0.7;
+
+      const uvOf=(gi,gj,s)=>{
         const st=T.sites[s];
-        const color = T.byParity ? ((wrapN(gi)+wrapN(gj))%2) : st.color;
-        return { u:(wrapN(gi)+st.x)/N, v:(wrapN(gj)+st.y)/N, color };
+        return {u:(wN(gi)+st.x)/N, v:(wN(gj)+st.y)/N};
+      };
+      const colorOf=(gi,gj,s)=>{
+        const st=T.sites[s];
+        return T.byParity?((wN(gi)+wN(gj))%2):st.color;
       };
 
-      const vmap={}, verts=[];
-      for(let gi=0; gi<N; gi++) for(let gj=0; gj<N; gj++)
-        for(let s=0;s<T.sites.length;s++){
-          const k=key(gi,gj,s);
-          if(vmap[k]===undefined){ vmap[k]=verts.length; verts.push(siteUV(gi,gj,s)); }
-        }
-      const pos3=verts.map(p=>torusPos(p.u,p.v,R,r*1.02));
-
-      // 辺：トーラス表面に沿う曲線にする。
-      // 端点を (u,v) 空間で最短ラップ方向に補間し、各点を torusPos で表面に乗せる。
-      // これで内部を貫通する弦にならない。
-      const SEG = 14; // 1辺の分割数
-      const lp=[]; let edgeCount=0;
-      const uvOf = (gi,gj,s)=>{
-        const st=T.sites[s];
-        return { u:(wrapN(gi)+st.x)/N, v:(wrapN(gj)+st.y)/N };
-      };
-      for(let gi=0; gi<N; gi++) for(let gj=0; gj<N; gj++)
+      // 辺
+      const SEG=14;
+      const lp=[];
+      let edgeCount=0;
+      for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
         for(const bd of T.bonds){
-          const a = uvOf(gi, gj, bd.a);
-          // 相手側はセル offset を加味した「素の」(u,v)。ラップ前の連続値で計算。
-          const bRaw = {
-            u:(gi+bd.du + T.sites[bd.b].x)/N,
-            v:(gj+bd.dv + T.sites[bd.b].y)/N
-          };
-          // a を基準に、b へ最短になるよう ±1 補正（トーラスは周期1）
-          let du = bRaw.u - a.u, dv = bRaw.v - a.v;
-          du -= Math.round(du); dv -= Math.round(dv);
+          const a=uvOf(gi,gj,bd.a);
+          const bRaw={u:(gi+bd.du+T.sites[bd.b].x)/N, v:(gj+bd.dv+T.sites[bd.b].y)/N};
+          let du=bRaw.u-a.u, dv=bRaw.v-a.v;
+          du-=Math.round(du); dv-=Math.round(dv);
           let prev=null;
-          for(let t=0; t<=SEG; t++){
+          for(let t=0;t<=SEG;t++){
             const f=t/SEG;
-            const p=torusPos(a.u+du*f, a.v+dv*f, R, r*1.02);
-            if(prev){ lp.push(prev.x,prev.y,prev.z, p.x,p.y,p.z); }
+            const p=torusPos(a.u+du*f,a.v+dv*f,R,r*1.02);
+            if(prev){lp.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);}
             prev=p;
           }
           edgeCount++;
         }
       const lineGeo=new THREE.BufferGeometry();
-      lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lp,3));
+      lineGeo.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
       group.add(new THREE.LineSegments(lineGeo,
-        new THREE.LineBasicMaterial({ color:0x88aacc, transparent:true, opacity:0.7 })));
+        new THREE.LineBasicMaterial({color:0x88aacc,transparent:true,opacity:dimerOpacity})));
 
-      // 頂点（白丸 / もう一方は視認性の高い琥珀色）
-      const cols=[0xf0f0f0, 0xe0a82e];
-      const emis=[0x000000, 0x4a3000];
+      // 頂点
+      const verts=[];
+      const vmap={};
+      for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
+        for(let s=0;s<T.sites.length;s++){
+          const k=`${wN(gi)},${wN(gj)},${s}`;
+          if(vmap[k]===undefined){
+            vmap[k]=verts.length;
+            verts.push({...uvOf(gi,gj,s), color:colorOf(gi,gj,s)});
+          }
+        }
+      const pos3=verts.map(p=>torusPos(p.u,p.v,R,r*1.02));
       const sphGeo=new THREE.SphereGeometry(r*0.075,14,14);
       [0,1].forEach(c=>{
-        const mat=new THREE.MeshPhongMaterial({ color:cols[c], emissive:emis[c], shininess:40 });
+        const mat=new THREE.MeshPhongMaterial({
+          color:c===0?0xf0f0f0:0xe0a82e, emissive:c===0?0x000000:0x4a3000,
+          shininess:40, transparent:true, opacity:dimerOpacity>0?1:0
+        });
         const members=verts.map((p,i)=>p.color===c?i:-1).filter(i=>i>=0);
         const inst=new THREE.InstancedMesh(sphGeo,mat,members.length);
         const d=new THREE.Object3D();
-        members.forEach((i,k)=>{ d.position.copy(pos3[i]); d.updateMatrix(); inst.setMatrixAt(k,d.matrix); });
+        members.forEach((v,k)=>{d.position.copy(pos3[v]);d.updateMatrix();inst.setMatrixAt(k,d.matrix);});
         group.add(inst);
       });
 
+      // ---- quiver ----
+      if(showQuiver){
+        const qdata=computeQuiver(T,N);
+        const faces=qdata.faces;
+        const arrows=qdata.arrows;
+
+        // quiver頂点（面の重心）をトーラスの少し外側に配置
+        const qr=r*1.06; // quiver は少し外側の層
+        const facePos3=faces.map(f=>torusPos(f.u,f.v,R,qr));
+
+        // quiver 頂点球（紫）
+        const qSphGeo=new THREE.SphereGeometry(r*0.09,14,14);
+        const qMat=new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060,shininess:60});
+        const qInst=new THREE.InstancedMesh(qSphGeo,qMat,facePos3.length);
+        const dd=new THREE.Object3D();
+        facePos3.forEach((p,i)=>{dd.position.copy(p);dd.updateMatrix();qInst.setMatrixAt(i,dd.matrix);});
+        group.add(qInst);
+
+        // quiver 矢印：tail → head をトーラスUV最短測地線で結ぶ
+        // 同一ペア間に複数矢印がある場合はUV空間で法線方向にオフセット
+        const QSEG=20;
+        const arrowPts=[];
+        const arrowHeadData=[];
+
+        // 同一ペアの多重度を数える
+        const pairCount={};
+        arrows.forEach(ar=>{
+          if(ar.tail===ar.head) return;
+          const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head);
+          pairCount[k]=(pairCount[k]||0)+1;
+        });
+        const pairIdx={};
+
+        arrows.forEach(ar=>{
+          if(ar.tail===ar.head) return;
+          const ft=faces[ar.tail], fh=faces[ar.head];
+          const tu=ft.u, tv=ft.v;
+          const hu=fh.u, hv=fh.v;
+
+          // tail → head の最短ラップ差分
+          let ddu=hu-tu, ddv=hv-tv;
+          ddu-=Math.round(ddu); ddv-=Math.round(ddv);
+
+          // 多重矢印のオフセット（UV法線方向に少しずらす）
+          const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head);
+          if(!pairIdx[k]) pairIdx[k]=0;
+          const idx=pairIdx[k]++;
+          const total=pairCount[k];
+          const offset=(idx-(total-1)/2)*0.012; // UV空間でのオフセット量
+          // 法線方向（UV平面内で90度回転）
+          const len=Math.sqrt(ddu*ddu+ddv*ddv)||1;
+          const nu=-ddv/len, nv=ddu/len;
+
+          // 始点・終点をオフセット
+          const su=(tu+nu*offset+1)%1, sv=(tv+nv*offset+1)%1;
+          const eu=(tu+ddu+nu*offset+1)%1, ev=(tv+ddv+nv*offset+1)%1;
+          // オフセット後の差分（再計算）
+          let fdu=eu-su, fdv=ev-sv;
+          fdu-=Math.round(fdu); fdv-=Math.round(fdv);
+
+          // 矢印先端を head 球の手前で止める（球半径分手前）
+          const stopFrac=0.82;
+          const pts=[];
+          for(let t=0;t<=QSEG;t++){
+            const f=(t/QSEG)*stopFrac;
+            pts.push(torusPos(su+fdu*f, sv+fdv*f, R, qr));
+          }
+
+          // ライン本体
+          for(let i=0;i<pts.length-1;i++){
+            arrowPts.push(pts[i].x,pts[i].y,pts[i].z,
+                          pts[i+1].x,pts[i+1].y,pts[i+1].z);
+          }
+          // 矢じり
+          const tip=pts[pts.length-1];
+          const pre=pts[pts.length-2];
+          const dir=new THREE.Vector3().subVectors(tip,pre).normalize();
+          arrowHeadData.push({pos:tip,dir});
+        });
+
+        // quiver 辺（ライン）
+        const qLineGeo=new THREE.BufferGeometry();
+        qLineGeo.setAttribute('position',new THREE.Float32BufferAttribute(arrowPts,3));
+        group.add(new THREE.LineSegments(qLineGeo,
+          new THREE.LineBasicMaterial({color:0xc084fc,transparent:true,opacity:0.85})));
+
+        // 矢じり（小さな円錐）
+        const coneGeo=new THREE.ConeGeometry(r*0.055, r*0.18, 8);
+        const coneMat=new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060});
+        arrowHeadData.forEach(({pos,dir})=>{
+          const cone=new THREE.Mesh(coneGeo,coneMat);
+          cone.position.copy(pos);
+          // 円錐のデフォルト軸=+Y → dir に向ける
+          const up=new THREE.Vector3(0,1,0);
+          const q=new THREE.Quaternion().setFromUnitVectors(up,dir);
+          cone.quaternion.copy(q);
+          group.add(cone);
+        });
+      }
+
       const names=['正方格子','六角格子(1)','六角格子(2)'];
-      document.getElementById('match-info').textContent =
+      document.getElementById('match-info').textContent=
         `${names[latIndex]}  ·  ${verts.length} 頂点 / ${edgeCount} 辺  ·  ${N}×${N}`;
       loading.classList.add('hidden');
-    }, 30);
+    },30);
   }
 
+  // ---- controls ----
   document.querySelectorAll('#lat-seg button').forEach(btn=>{
-    btn.addEventListener('click', function(){
+    btn.addEventListener('click',function(){
       document.querySelectorAll('#lat-seg button').forEach(b=>b.classList.remove('active'));
       this.classList.add('active'); latIndex=+this.dataset.lat; buildScene();
     });
   });
-  document.getElementById('torus-r').addEventListener('input', function(){
+  document.querySelectorAll('#view-seg button').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('#view-seg button').forEach(b=>{
+        b.classList.remove('active'); b.classList.remove('active-q');
+      });
+      viewMode=this.dataset.view;
+      if(viewMode==='quiver') this.classList.add('active-q');
+      else this.classList.add('active');
+      buildScene();
+    });
+  });
+  document.getElementById('torus-r').addEventListener('input',function(){
     torusR=+this.value; document.getElementById('torus-r-val').textContent=torusR.toFixed(1); buildScene();
   });
-  document.getElementById('rep').addEventListener('input', function(){
+  document.getElementById('rep').addEventListener('input',function(){
     rep=+this.value; document.getElementById('rep-val').textContent=rep+'×'+rep; buildScene();
   });
-  document.getElementById('auto-rot').addEventListener('input', function(){ autoSpeed=+this.value; });
+  document.getElementById('auto-rot').addEventListener('input',function(){ autoSpeed=+this.value; });
 
-  window.addEventListener('resize', ()=>{
+  window.addEventListener('resize',()=>{
     const W=wrap.clientWidth, H=wrap.clientHeight;
     renderer.setSize(W,H); camera.aspect=W/H; camera.updateProjectionMatrix();
   });
