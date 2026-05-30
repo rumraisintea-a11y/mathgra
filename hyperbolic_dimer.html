@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hyperbolic Double Circle Packing — Dimer Model</title>
+<style>
+  :root{
+    --bg:#0a0e14;--panel:#11161f;--ink:#e8e3d3;
+    --primal:#e84a3c;--dual:#3d7fd6;
+    --primalEdge:#0d0d0d;--dualEdge:#9aa0a8;
+    --white:#f2efe4;--dimer:#f5c542;--line:#2a313d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;}
+  .wrap{display:flex;min-height:100%;}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;}
+  svg{display:block;filter:drop-shadow(0 12px 40px rgba(0,0,0,.4));
+    background:radial-gradient(circle at 50% 42%,#8c8c8c 0%,#6f6f6f 78%);border-radius:50%;}
+  aside{width:300px;background:var(--panel);border-left:1px solid var(--line);
+    padding:26px 22px;display:flex;flex-direction:column;gap:18px;}
+  h1{font-size:19px;margin:0;line-height:1.25;}
+  h1 small{display:block;font-size:11px;letter-spacing:1.6px;text-transform:uppercase;
+    color:#7d8794;margin-top:8px;font-family:ui-monospace,monospace;}
+  .sub{font-size:12.5px;color:#9aa0a8;line-height:1.55;}
+  .grp{display:flex;flex-direction:column;gap:9px;}
+  .grp>label{font-size:11px;letter-spacing:1.4px;text-transform:uppercase;
+    color:#6f7884;font-family:ui-monospace,monospace;}
+  .row{display:flex;gap:8px;}
+  .pill{flex:1;background:#1a212c;border:1px solid #2c3441;color:var(--ink);
+    padding:8px 6px;border-radius:8px;cursor:pointer;font-size:13px;transition:.18s;font-family:inherit;}
+  .pill:hover{border-color:#445064;background:#222b38;}
+  .pill.on{background:var(--dimer);color:#1a1206;border-color:var(--dimer);font-weight:600;}
+  .toggle{display:flex;align-items:center;justify-content:space-between;font-size:13px;padding:6px 2px;}
+  .switch{width:42px;height:23px;background:#2c3441;border-radius:99px;position:relative;cursor:pointer;transition:.2s;flex:none;}
+  .switch::after{content:"";position:absolute;width:17px;height:17px;background:#e8e3d3;border-radius:50%;top:3px;left:3px;transition:.2s;}
+  .switch.on{background:var(--dimer);}
+  .switch.on::after{left:22px;background:#1a1206;}
+  input[type=range]{width:100%;accent-color:var(--dimer);}
+  .val{font-family:ui-monospace,monospace;font-size:12px;color:var(--dimer);}
+  .legend{font-size:11.5px;display:flex;flex-direction:column;gap:6px;color:#aab0b8;line-height:1.4;}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px;vertical-align:-1px;}
+  .legend .bar{width:16px;border-top-width:3px;border-top-style:solid;margin-right:6px;display:inline-block;vertical-align:3px;}
+  .foot{font-size:10.5px;color:#5b646f;line-height:1.5;font-family:ui-monospace,monospace;margin-top:auto;}
+  .foot b{color:#7d8794;}
+  @media(max-width:780px){.wrap{flex-direction:column;}aside{width:auto;border-left:none;border-top:1px solid var(--line);}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="stage">
+    <svg id="disk" viewBox="-1.04 -1.04 2.08 2.08" width="640" height="640"></svg>
+  </div>
+  <aside>
+    <h1>Double Circle Packing<small>Dimer model · ℍ² Poincaré disk</small></h1>
+    <p class="sub">論文 Li (arXiv:2406.08615) Def 2.3。正則双曲タイリング {p,q} の
+    <b>厳密な</b>二重円充填上の二部グラフ Ǧ。<b>黒点 = 円の中心</b>(primal頂点○・dual面○の両方、
+    どちらも黒)、<b>白点 = 円どうしの接点</b>(= G の辺 = G⁺ の双対辺、一点)。
+    各白点は隣接する黒中心(primal 2 + dual ≤2)に接続。Ǧ 上の完全マッチング(ダイマー)を表示。</p>
+
+    <div class="grp"><label>Tiling {p, q}</label>
+      <div class="row" id="tiles">
+        <button class="pill on" data-p="7" data-q="3">{7,3}</button>
+        <button class="pill" data-p="5" data-q="4">{5,4}</button>
+        <button class="pill" data-p="8" data-q="3">{8,3}</button>
+        <button class="pill" data-p="6" data-q="4">{6,4}</button>
+      </div>
+    </div>
+    <div class="grp"><label>Depth</label>
+      <input id="depth" type="range" min="2" max="6" value="4" step="1">
+      <span class="val" id="depthV">4 layers</span>
+    </div>
+    <div class="grp"><label>Layers</label>
+      <div class="toggle"><span>Primal circles (red)</span><div class="switch on" data-k="pc"></div></div>
+      <div class="toggle"><span>Dual circles (blue)</span><div class="switch on" data-k="dc"></div></div>
+      <div class="toggle"><span>Primal graph G (black)</span><div class="switch on" data-k="gr"></div></div>
+      <div class="toggle"><span>Dual graph G⁺ (gray)</span><div class="switch" data-k="gd"></div></div>
+      <div class="toggle"><span>Bipartite graph Ǧ</span><div class="switch" data-k="bp"></div></div>
+      <div class="toggle"><span>● Black = dual centers</span><div class="switch on" data-k="bk"></div></div>
+      <div class="toggle"><span>● Red = primal points</span><div class="switch on" data-k="pp"></div></div>
+      <div class="toggle"><span>○ White = tangent points</span><div class="switch on" data-k="wt"></div></div>
+      <div class="toggle"><span>Dimer cover</span><div class="switch on" data-k="dm"></div></div>
+    </div>
+    <div class="row"><button class="pill" id="reshuffle">↻ 別のマッチング</button></div>
+    <div class="val" id="status" style="font-size:11.5px;line-height:1.5;"></div>
+    <div class="legend">
+      <span><i style="background:var(--primal)"></i>primal 円充填 (red)</span>
+      <span><i style="background:var(--dual)"></i>dual 円充填 (blue)</span>
+      <span><span class="bar" style="border-color:var(--primalEdge)"></span>primal graph G</span>
+      <span><span class="bar" style="border-color:var(--dualEdge)"></span>dual graph G⁺</span>
+      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(真の黒点 · dual)</span>
+      <span><i style="background:#e84a3c;border:2px solid #5a0f09"></i>● red = <b>primal点</b>(黒点ではない)</span>
+      <span><i style="background:var(--white);border:2px solid #caa018"></i>○ white = 円の<b>接点</b> (辺 = ダイマー位置)</span>
+      <span><span class="bar" style="border-color:var(--dimer)"></span>dimer (matching)</span>
+    </div>
+    <div class="foot">vertex 円半径 = acosh(cos(π/p)/sin(π/q))<br>
+      face 円半径 = acosh(cos(π/q)/sin(π/p))<br>
+      直交: cosh(d)=cosh(rv)cosh(rd) ✓<br>
+      白完全マッチング: 黒中心は白接点より χ 個多く<br>
+      (Lemma 4.4 の Temperley 境界 b₀ に対応)、<br>
+      全白点を飽和。余り黒点=境界。</div>
+  </aside>
+</div>
+
+<script>
+/* ---------- complex + Möbius (Poincaré disk) ---------- */
+const C={add:(a,b)=>({x:a.x+b.x,y:a.y+b.y}),sub:(a,b)=>({x:a.x-b.x,y:a.y-b.y}),
+mul:(a,b)=>({x:a.x*b.x-a.y*b.y,y:a.x*b.y+a.y*b.x}),conj:a=>({x:a.x,y:-a.y}),
+scale:(a,s)=>({x:a.x*s,y:a.y*s}),div:(a,b)=>{const d=b.x*b.x+b.y*b.y;return{x:(a.x*b.x+a.y*b.y)/d,y:(a.y*b.x-a.x*b.y)/d};},
+abs2:a=>a.x*a.x+a.y*a.y,abs:a=>Math.hypot(a.x,a.y)};
+const mob=(a,c)=>({a,c});
+const mobApply=(m,z)=>{const n=C.add(C.mul(m.a,z),m.c);const d=C.add(C.mul(C.conj(m.c),z),C.conj(m.a));return C.div(n,d);};
+const mobCompose=(m1,m2)=>{const a=C.add(C.mul(m1.a,m2.a),C.mul(m1.c,C.conj(m2.c)));const c=C.add(C.mul(m1.a,m2.c),C.mul(m1.c,C.conj(m2.a)));return mob(a,c);};
+const transTo=p=>mob({x:1,y:0},p);
+const rot=t=>mob({x:Math.cos(t/2),y:Math.sin(t/2)},{x:0,y:0});
+function hMidpoint(a,b){const T=transTo(C.scale(a,-1));const b2=mobApply(T,b);const r=C.abs(b2);if(r<1e-12)return a;const th=Math.tanh(0.5*Math.atanh(r));return mobApply(transTo(a),C.scale(b2,th/r));}
+const acosh=Math.acosh,atanh=Math.atanh,tanh=Math.tanh;
+
+/* hyperbolic circle (center c, hyp radius rho) -> Euclidean circle */
+function hCircleToEuclid(c,rho){
+  const s=Math.hypot(c.x,c.y);
+  if(s<1e-12){const r=tanh(rho/2);return{cx:0,cy:0,r};}
+  const u0=atanh(s);
+  const rOut=tanh(u0+rho/2), rIn=tanh(u0-rho/2);
+  const ux=c.x/s, uy=c.y/s;
+  const cx=ux*(rOut+rIn)/2, cy=uy*(rOut+rIn)/2;
+  const r=(rOut-rIn)/2;
+  return{cx,cy,r};
+}
+
+/* ---------- {p,q} tiling ---------- */
+function radii(p,q){
+  const A=Math.PI/p,B=Math.PI/q;
+  return{
+    R:acosh((1/Math.tan(A))*(1/Math.tan(B))),
+    rv:acosh(Math.cos(A)/Math.sin(B)),   // primal vertex circle (= half edge)
+    rd:acosh(Math.cos(B)/Math.sin(A))    // dual face circle (= apothem)
+  };
+}
+function buildTiling(p,q,depth){
+  const {R}=radii(p,q);
+  const rvEuc=tanh(R/2);
+  const baseVerts=[];
+  for(let k=0;k<p;k++){const ang=2*Math.PI*k/p+Math.PI/p;baseVerts.push({x:rvEuc*Math.cos(ang),y:rvEuc*Math.sin(ang)});}
+  const pc=vs=>{let sx=0,sy=0;for(const v of vs){sx+=v.x;sy+=v.y;}return{x:sx/vs.length,y:sy/vs.length};};
+  const gens=[];
+  for(let k=0;k<p;k++){const Aa=baseVerts[k],Bb=baseVerts[(k+1)%p];const mid=hMidpoint(Aa,Bb);
+    gens.push(mobCompose(transTo(mid),mobCompose(rot(Math.PI),transTo(C.scale(mid,-1)))));}
+
+  // --- Generic distance-based point identification (spatial hash) ---------
+  // Fixed toFixed() rounding was BOTH merging distinct points AND splitting
+  // equal ones: e.g. the 4 face-orbit copies meeting at the origin each got a
+  // slightly different Euclidean centroid and were registered as 4 separate
+  // faces -> 4 black vertices at (0,0) -> 4 dimers on one black point. We snap
+  // by actual distance, with a tolerance that scales like the conformal factor
+  // (1-|z|^2) so it is uniform in the hyperbolic metric.
+  function makeSnapper(){
+    const GRID=1/512, grid=new Map(), pts=[];
+    const close=(a,b)=>{const dx=a.x-b.x,dy=a.y-b.y;
+      const conf=Math.min(1-(a.x*a.x+a.y*a.y),1-(b.x*b.x+b.y*b.y));
+      const tol=Math.max(conf*1.2e-3,1e-7); return dx*dx+dy*dy<tol*tol;};
+    return {pts, id(z){
+      const cx=Math.floor(z.x/GRID),cy=Math.floor(z.y/GRID);
+      for(let i=-1;i<=1;i++)for(let j=-1;j<=1;j++){
+        const arr=grid.get((cx+i)+'#'+(cy+j)); if(!arr)continue;
+        for(const id of arr) if(close(z,pts[id])) return id;
+      }
+      const id=pts.length; pts.push({...z});
+      const k=cx+'#'+cy; if(!grid.has(k))grid.set(k,[]); grid.get(k).push(id);
+      return id;
+    }};
+  }
+
+  // BFS over the tiling; faces deduped by snapped center id
+  const faceSnap=makeSnapper();
+  const faces=[]; const faceByCenterId=new Map();
+  const queue=[{verts:baseVerts.map(v=>({...v})),layer:0}];
+  while(queue.length){
+    const f=queue.shift(); const c=pc(f.verts);
+    if(C.abs(c)>0.985) continue;
+    const cid=faceSnap.id(c);
+    if(faceByCenterId.has(cid)) continue;          // same face already seen
+    faceByCenterId.set(cid, faces.length);
+    faces.push({center:faceSnap.pts[cid], verts:f.verts, layer:f.layer});
+    if(f.layer>=depth) continue;
+    for(const g of gens) queue.push({verts:f.verts.map(v=>mobApply(g,v)),layer:f.layer+1});
+  }
+
+  // vertices deduped by the same distance snapper
+  const vSnap=makeSnapper();
+  const vId=z=>vSnap.id(z);
+  const eMap=new Map(); const edges=[];
+  faces.forEach((f,fi)=>{const ids=f.verts.map(vId); f.vids=ids;
+    for(let k=0;k<ids.length;k++){const a=ids[k],b=ids[(k+1)%ids.length];
+      if(a===b) continue;
+      const ek=a<b?a+'-'+b:b+'-'+a;
+      if(!eMap.has(ek)){eMap.set(ek,{a,b,faces:[],id:edges.length});edges.push(eMap.get(ek));}
+      const E=eMap.get(ek); if(!E.faces.includes(fi))E.faces.push(fi);}});
+  return{faces, verts:vSnap.pts, edges};
+}
+
+/* ---------- bipartite graph Ǧ + dimer (white-perfect matching) ----------
+   White vertex  = each EDGE of G  (= primal tangent point = hyp. midpoint of endpoints).
+   Black vertex  = each VERTEX of G (primal circle center)  AND  each FACE (dual circle center).
+   In Ǧ a white connects to its 2 primal endpoints + its (1–2) adjacent faces.
+
+   IMPORTANT FACT (why the old greedy version never finished):
+     By Euler's formula  #black − #white = V + F − E = χ  > 0  on any finite patch,
+     so there are ALWAYS more black vertices than white ones. A matching that covers
+     EVERY black vertex is impossible. The meaningful dimer object is a
+     WHITE-PERFECT matching: every white (= every dimer / every edge) is covered exactly
+     once, each black used at most once, leaving χ black vertices unmatched on the boundary.
+   We compute a genuine maximum matching via augmenting paths (Kuhn / Hungarian DFS),
+   which provably saturates all whites here. Adjacency is shuffled for variety.        */
+function buildDimer(T){
+  const whites=[];
+  T.edges.forEach(e=>{
+    whites.push({pos:hMidpoint(T.verts[e.a],T.verts[e.b]),
+      primal:[e.a,e.b], dual:e.faces.slice(), id:whites.length});
+  });
+
+  // black vertices get contiguous ids
+  const blackId=new Map(), blacks=[];
+  const bId=(t,id)=>{const k=t+'_'+id;if(blackId.has(k))return blackId.get(k);
+    const n=blacks.length;blackId.set(k,n);blacks.push({t,id});return n;};
+  const wadj=whites.map(w=>{
+    const a=[bId('p',w.primal[0]),bId('p',w.primal[1])];
+    w.dual.forEach(f=>a.push(bId('d',f)));
+    return a;
+  });
+  const W=wadj.length, B=blacks.length;
+
+  // shuffle each white's candidate list -> different valid matching each reshuffle
+  for(const lst of wadj){for(let i=lst.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[lst[i],lst[j]]=[lst[j],lst[i]];}}
+  // randomize the order whites are processed too
+  const order=[...Array(W).keys()];
+  for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+
+  const matchB=new Array(B).fill(-1); // black id -> white id
+  const matchW=new Array(W).fill(-1); // white id -> black id
+  function aug(w,vis){
+    for(const b of wadj[w]){
+      if(vis[b])continue; vis[b]=true;
+      if(matchB[b]===-1 || aug(matchB[b],vis)){
+        matchB[b]=w; matchW[w]=b; return true;
+      }
+    }
+    return false;
+  }
+  for(const w of order){const vis=new Array(B).fill(false);aug(w,vis);}
+
+  // build dimer segments from the matching (every white is saturated).
+  // tag each segment with the type of its black endpoint ('p'=primal vertex
+  // center, 'd'=dual face center) so the renderer can hide primal-side lines
+  // on request WITHOUT changing the (correct) underlying perfect matching.
+  const matching=[];
+  for(let w=0;w<W;w++){
+    const b=matchW[w]; if(b<0)continue;
+    const bk=blacks[b];
+    const bpos = bk.t==='p' ? T.verts[bk.id] : T.faces[bk.id].center;
+    matching.push({a:bpos, b:whites[w].pos, btype:bk.t});
+  }
+  const covered=matching.length;
+
+  const dualEdges=[];
+  T.edges.forEach(e=>{if(e.faces.length===2)dualEdges.push({a:T.faces[e.faces[0]].center,b:T.faces[e.faces[1]].center});});
+  return{whites,matching,dualEdges,covered,W,B};
+}
+
+/* ---------- render ---------- */
+const NS="http://www.w3.org/2000/svg";
+const svg=document.getElementById('disk');
+let state={p:7,q:3,depth:4,T:null,D:null,rad:null,show:{pc:true,dc:true,gr:true,gd:false,bp:false,bk:true,pp:true,wt:true,dm:true}};
+const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
+
+function render(){
+  while(svg.firstChild)svg.removeChild(svg.firstChild);
+  const {T,D,show,rad}=state;
+  svg.appendChild(el('circle',{cx:0,cy:0,r:1,fill:'none',stroke:'#2a2a2a','stroke-width':0.012}));
+
+  if(show.pc){const g=el('g',{opacity:0.55});const seen=new Set();
+    T.edges.forEach(e=>[e.a,e.b].forEach(v=>{if(seen.has(v))return;seen.add(v);
+      const c=hCircleToEuclid(T.verts[v],rad.rv);
+      if(c.r>0&&c.r<2)g.appendChild(el('circle',{cx:c.cx,cy:c.cy,r:c.r,fill:'none',stroke:'var(--primal)','stroke-width':0.0055}));}));
+    svg.appendChild(g);}
+
+  if(show.dc){const g=el('g',{opacity:0.55});
+    T.faces.forEach(f=>{const c=hCircleToEuclid(f.center,rad.rd);
+      if(c.r>0&&c.r<2)g.appendChild(el('circle',{cx:c.cx,cy:c.cy,r:c.r,fill:'none',stroke:'var(--dual)','stroke-width':0.0055}));});
+    svg.appendChild(g);}
+
+  if(show.gr){const gp=el('g',{});
+    T.edges.forEach(e=>gp.appendChild(el('line',{x1:T.verts[e.a].x,y1:T.verts[e.a].y,x2:T.verts[e.b].x,y2:T.verts[e.b].y,
+      stroke:'var(--primalEdge)','stroke-width':0.009,'stroke-linecap':'round',opacity:0.9})));
+    svg.appendChild(gp);}
+
+  if(show.gd){const gd=el('g',{});
+    D.dualEdges.forEach(e=>gd.appendChild(el('line',{x1:e.a.x,y1:e.a.y,x2:e.b.x,y2:e.b.y,
+      stroke:'var(--dualEdge)','stroke-width':0.006,opacity:0.5})));
+    svg.appendChild(gd);}
+
+  if(show.bp){const g=el('g',{opacity:0.4});
+    D.whites.forEach(w=>{w.primal.forEach(v=>g.appendChild(el('line',{x1:w.pos.x,y1:w.pos.y,x2:T.verts[v].x,y2:T.verts[v].y,stroke:'#5a6472','stroke-width':0.004})));
+      w.dual.forEach(f=>g.appendChild(el('line',{x1:w.pos.x,y1:w.pos.y,x2:T.faces[f].center.x,y2:T.faces[f].center.y,stroke:'#5a6472','stroke-width':0.004})));});
+    svg.appendChild(g);}
+
+  if(show.dm){const g=el('g',{});
+    D.matching.forEach(m=>{
+      if(m.btype==='p' && !show.pdm) return;   // primal中心からは線を伸ばさない
+      g.appendChild(el('line',{x1:m.a.x,y1:m.a.y,x2:m.b.x,y2:m.b.y,
+        stroke:'var(--dimer)','stroke-width':0.017,'stroke-linecap':'round',opacity:0.95}));
+    });
+    svg.appendChild(g);}
+
+  // white vertices = tangent points (circle kissing points)
+  // matched whites get a gold rim (every white SHOULD be matched); any unmatched
+  // white would show as a bare white dot -> instant visual sanity check.
+  if(show.wt){const g=el('g',{});
+    const matchedPos=new Set(D.matching.map(m=>m.b.x.toFixed(5)+','+m.b.y.toFixed(5)));
+    D.whites.forEach(w=>{
+      const isM=matchedPos.has(w.pos.x.toFixed(5)+','+w.pos.y.toFixed(5));
+      g.appendChild(el('circle',{cx:w.pos.x,cy:w.pos.y,r:0.013,fill:'#ffffff',
+        stroke:isM?'#caa018':'#cc2222','stroke-width':isM?0.0035:0.006}));
+    });
+    svg.appendChild(g);}
+
+  // dual face centers = the BLACK vertices (circle centers) -> solid black.
+  if(show.bk){const g=el('g',{});
+    T.faces.forEach(f=>g.appendChild(el('circle',{cx:f.center.x,cy:f.center.y,r:0.0135,fill:'#000',stroke:'#cdd2d8','stroke-width':0.0022,opacity:0.96})));
+    svg.appendChild(g);}
+
+  // primal points = DISTINCT (non-black) class -> red fill, matching the primal
+  // circle color. No dimer lines leave these (see show.dm filter). Toggle: pp.
+  if(show.pp){const g=el('g',{});const seen=new Set();
+    T.edges.forEach(e=>[e.a,e.b].forEach(v=>{if(seen.has(v))return;seen.add(v);
+      g.appendChild(el('circle',{cx:T.verts[v].x,cy:T.verts[v].y,r:0.012,fill:'#e84a3c',stroke:'#5a0f09','stroke-width':0.0025,opacity:0.96}));}));
+    svg.appendChild(g);}
+}
+
+function rebuild(reshuffleOnly){
+  if(!reshuffleOnly){state.rad=radii(state.p,state.q);state.T=buildTiling(state.p,state.q,state.depth);}
+  state.D=buildDimer(state.T);render();
+  const D=state.D, ok=D.covered===D.W;
+  const st=document.getElementById('status');
+  if(st)st.innerHTML=`白点 ${D.W} ／ 黒点 ${D.B}<br>ダイマー被覆 <b style="color:${ok?'#7ec96b':'#e85a5a'}">${D.covered}/${D.W}</b> `
+    +(ok?'白完全マッチング ✓':'⚠ 未被覆あり')
+    +`<br><span style="color:#6f7884">余り黒点 ${D.B-D.covered} 個（境界・χ由来）</span>`;
+}
+
+document.querySelectorAll('#tiles .pill').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#tiles .pill').forEach(x=>x.classList.remove('on'));b.classList.add('on');
+  state.p=+b.dataset.p;state.q=+b.dataset.q;rebuild(false);});
+const depth=document.getElementById('depth'),depthV=document.getElementById('depthV');
+depth.oninput=()=>{state.depth=+depth.value;depthV.textContent=depth.value+' layers';rebuild(false);};
+document.querySelectorAll('.switch').forEach(s=>s.onclick=()=>{state.show[s.dataset.k]=!state.show[s.dataset.k];s.classList.toggle('on');render();});
+document.getElementById('reshuffle').onclick=()=>rebuild(true);
+rebuild(false);
+</script>
+</body>
+</html>
