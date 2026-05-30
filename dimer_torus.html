@@ -3,33 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dimer Graph on Torus</title>
+<title>Dimer Model on Torus &middot; Perfect Matching</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { --bg:#0e0e12; --panel:#17171d; --border:#33333d; --accent1:#e0a82e;
-    --accent2:#4db8ff; --accent3:#c084fc; --text:#e6e6ea; --text-dim:#8a8a96; --font:'JetBrains Mono',monospace; }
+  :root { --bg:#0e0e12; --panel:#17171d; --panel2:#1d1d25; --border:#33333d; --accent1:#e0a82e;
+    --accent2:#4db8ff; --accent3:#c084fc; --hot:#ff5a4d; --cold:#2a4a6a;
+    --text:#e6e6ea; --text-dim:#8a8a96; --font:'JetBrains Mono',monospace; }
   body { background:var(--bg); color:var(--text); font-family:var(--font);
     height:100vh; display:flex; flex-direction:column; overflow:hidden; }
-  header { display:flex; align-items:center; gap:16px; padding:8px 16px;
+  header { display:flex; align-items:center; gap:14px; padding:8px 16px;
     border-bottom:1px solid var(--border); background:var(--panel); flex-shrink:0; flex-wrap:wrap; }
-  header h1 { font-size:12px; font-weight:600; letter-spacing:.15em;
+  header h1 { font-size:12px; font-weight:600; letter-spacing:.14em;
     color:var(--accent1); text-transform:uppercase; white-space:nowrap; }
-  .controls { display:flex; align-items:center; gap:14px; flex-wrap:wrap; flex:1; }
+  .controls { display:flex; align-items:center; gap:13px; flex-wrap:wrap; flex:1; }
   .ctrl-group { display:flex; align-items:center; gap:7px; font-size:11px;
-    color:var(--text-dim); letter-spacing:.05em; }
+    color:var(--text-dim); letter-spacing:.04em; }
   .ctrl-group label { white-space:nowrap; }
-  input[type=range] { -webkit-appearance:none; width:80px; height:3px;
+  input[type=range] { -webkit-appearance:none; width:74px; height:3px;
     background:var(--border); border-radius:2px; outline:none; cursor:pointer; }
   input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px;
     border-radius:50%; background:var(--accent2); cursor:pointer; }
-  .val-badge { font-size:11px; color:var(--accent2); min-width:32px; }
-  button { font-family:var(--font); font-size:11px; letter-spacing:.08em; padding:4px 12px;
+  input[type=range]::-moz-range-thumb { width:12px; height:12px; border:none;
+    border-radius:50%; background:var(--accent2); cursor:pointer; }
+  .val-badge { font-size:11px; color:var(--accent2); min-width:30px; }
+  button { font-family:var(--font); font-size:11px; letter-spacing:.07em; padding:4px 11px;
     background:transparent; border:1px solid var(--border); color:var(--text); cursor:pointer;
     transition:border-color .15s,color .15s,background .15s; text-transform:uppercase; }
   button:hover { border-color:var(--accent1); color:var(--accent1); }
   button.active { border-color:var(--accent1); color:#fff; background:var(--accent1); }
   button.active-q { border-color:var(--accent3); color:#fff; background:var(--accent3); }
+  button.active-m { border-color:var(--hot); color:#fff; background:var(--hot); }
   .seg { display:flex; gap:0; }
   .seg button { border-right-width:0; }
   .seg button:last-child { border-right-width:1px; }
@@ -42,19 +46,61 @@
     background:var(--bg); font-size:12px; color:var(--text-dim); letter-spacing:.1em;
     pointer-events:none; transition:opacity .4s; z-index:5; }
   #loading.hidden { opacity:0; pointer-events:none; }
+
+  /* side panel for weights & stats */
+  #panel { position:absolute; top:12px; left:12px; width:236px; background:var(--panel);
+    border:1px solid var(--border); border-radius:4px; padding:12px 13px; z-index:4;
+    font-size:11px; max-height:calc(100% - 24px); overflow-y:auto; transition:transform .25s; }
+  #panel.collapsed { transform:translateX(-260px); }
+  #panel h2 { font-size:10px; letter-spacing:.13em; color:var(--accent1); text-transform:uppercase;
+    margin-bottom:9px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  #panel h2:not(:first-child){ margin-top:15px; }
+  .wrow { display:flex; align-items:center; gap:8px; margin-bottom:7px; }
+  .wrow .swatch { width:12px; height:12px; border-radius:2px; flex-shrink:0; }
+  .wrow input[type=range]{ flex:1; width:auto; }
+  .wrow .wval { min-width:34px; text-align:right; color:var(--accent2); font-size:10px; }
+  .wrow .wlbl { min-width:30px; color:var(--text-dim); font-size:10px; }
+  .stat { display:flex; justify-content:space-between; margin-bottom:5px; color:var(--text-dim); }
+  .stat b { color:var(--text); font-weight:400; }
+  .pbar { height:5px; background:var(--panel2); border-radius:3px; overflow:hidden; margin-top:2px; }
+  .pbar > div { height:100%; background:linear-gradient(90deg,var(--cold),var(--accent3),var(--hot)); }
+  .legend { display:flex; align-items:center; gap:6px; margin-top:8px; font-size:9px; color:var(--text-dim); }
+  .legend .grad { flex:1; height:7px; border-radius:3px;
+    background:linear-gradient(90deg,#2a4a6a,#4db8ff,#c084fc,#ff5a4d); }
+  #panel-toggle { position:absolute; top:12px; left:12px; z-index:5; padding:5px 9px;
+    display:none; }
+  #panel-toggle.show { display:block; }
+  .mc-btns { display:flex; gap:6px; margin-top:8px; }
+  .mc-btns button { flex:1; padding:5px 0; font-size:10px; }
+  .note { font-size:9px; color:var(--text-dim); line-height:1.6; margin-top:8px;
+    padding-top:8px; border-top:1px solid var(--border); }
 </style>
 </head>
 <body>
 <header>
-  <h1>Dimer Graph &middot; Torus</h1>
+  <h1>Dimer Model &middot; Torus</h1>
   <div class="controls">
     <div class="ctrl-group">
       <label>MODEL</label>
       <div class="seg" id="lat-seg">
-        <button data-lat="0" class="active">模型 1</button>
-        <button data-lat="1">模型 2</button>
-        <button data-lat="2">模型 3</button>
+        <button data-lat="0" class="active">正方</button>
+        <button data-lat="1">六角1</button>
+        <button data-lat="2">六角2</button>
       </div>
+    </div>
+    <div class="ctrl-group">
+      <label>VIEW</label>
+      <div class="seg" id="view-seg">
+        <button data-view="match" class="active-m">Matching</button>
+        <button data-view="dimer">Graph</button>
+        <button data-view="prob">P(e)</button>
+        <button data-view="quiver">Quiver</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label>REPEAT</label>
+      <input type="range" id="rep" min="2" max="20" value="6" step="1">
+      <span class="val-badge" id="rep-val">6×6</span>
     </div>
     <div class="ctrl-group">
       <label>R/r</label>
@@ -62,39 +108,72 @@
       <span class="val-badge" id="torus-r-val">2.8</span>
     </div>
     <div class="ctrl-group">
-      <label>REPEAT</label>
-      <input type="range" id="rep" min="1" max="10" value="4" step="1">
-      <span class="val-badge" id="rep-val">4×4</span>
-    </div>
-    <div class="ctrl-group">
-      <label>SPEED</label>
+      <label>SPIN</label>
       <input type="range" id="auto-rot" min="0" max="10" value="2" step="1">
     </div>
     <div class="ctrl-group">
-      <label>VIEW</label>
-      <div class="seg" id="view-seg">
-        <button data-view="dimer" class="active">Dimer</button>
-        <button data-view="quiver">Quiver</button>
-        <button data-view="both">Both</button>
-      </div>
+      <label>VERTICES</label>
+      <button id="vtx-toggle" class="active">ON</button>
     </div>
     <span class="info" id="match-info"></span>
   </div>
 </header>
 <div id="canvas-wrap">
   <canvas id="c3d"></canvas>
+  <button id="panel-toggle">☰ PANEL</button>
+  <div id="panel">
+    <h2>Boltzmann Weights</h2>
+    <div id="weight-rows"></div>
+    <div class="legend"><span>cool</span><div class="grad"></div><span>active</span></div>
+
+    <h2>Monte&nbsp;Carlo</h2>
+    <div class="stat"><span>状態 sweeps</span><b id="st-sweeps">0</b></div>
+    <div class="stat"><span>採択率</span><b id="st-accept">—</b></div>
+    <div class="stat"><span>flip 候補 / sweep</span><b id="st-faces">—</b></div>
+    <div class="stat"><span>現配位の重み積</span><b id="st-wprod">—</b></div>
+    <div class="mc-btns">
+      <button id="btn-run" class="active-m">▶ RUN</button>
+      <button id="btn-step">STEP</button>
+      <button id="btn-reset">RESET</button>
+    </div>
+    <div class="ctrl-group" style="margin-top:9px;">
+      <label style="min-width:42px;">SPEED</label>
+      <input type="range" id="mc-speed" min="1" max="200" value="40" step="1" style="flex:1;width:auto;">
+    </div>
+
+    <h2>P(e) 推定 [P(e) view]</h2>
+    <div class="stat"><span>サンプル数</span><b id="st-samples">0</b></div>
+    <div class="stat"><span>平均占有率</span><b id="st-meanp">—</b></div>
+    <div class="note" id="method-note">
+      面反転 Metropolis（提案が対称で詳細釣り合いを厳密に満たす局所更新）で
+      ボルツマン分布 ∝ Π w(e) からサンプリングします。各遷移は必ず正しい
+      パーフェクトマッチングを保ちます。<br><br>
+      P(e) は各辺がダイマーに使われた頻度の推定値です。P(e) ビューでは
+      帯の<b>太さ・色・明るさ</b>がすべて占有率を表し、よく使われる辺ほど
+      太く明るい帯になります。<br><br>
+      面反転だけではトーラスを巻く位相セクターを跨げないため、初期配位の
+      セクター内での推定値である点に注意してください（局所推定）。
+    </div>
+  </div>
   <div id="loading">BUILDING SCENE...</div>
   <div class="hint">Drag: rotate<br>Scroll: zoom<br>Shift+drag: pan</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 (function(){
-  let torusR=2.8, autoSpeed=2, latIndex=0, rep=4;
-  let viewMode='dimer'; // 'dimer' | 'quiver' | 'both'
+  'use strict';
+  // ============ state ============
+  let torusR=2.8, autoSpeed=2, latIndex=0, rep=6;
+  let viewMode='match'; // 'match' | 'dimer' | 'prob' | 'quiver'
+  let weights=[];        // boltzmann weight per bond-type
+  let mcRunning=true, mcSpeed=40;
+  let showVertices=true; // user toggle for vertex spheres
 
   const wrap   = document.getElementById('canvas-wrap');
   const canvas = document.getElementById('c3d');
   const loading= document.getElementById('loading');
+  const panel  = document.getElementById('panel');
+  const panelToggle = document.getElementById('panel-toggle');
 
   const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
   renderer.setPixelRatio(Math.min(devicePixelRatio,2));
@@ -104,14 +183,17 @@
   const scene  = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(50, wrap.clientWidth/wrap.clientHeight, 0.01, 200);
   camera.position.set(0,0,8);
-
   scene.add(new THREE.AmbientLight(0xffffff,0.75));
   const dl1=new THREE.DirectionalLight(0xffffff,0.9); dl1.position.set(6,9,6); scene.add(dl1);
   const dl2=new THREE.DirectionalLight(0x88aaff,0.4); dl2.position.set(-6,-4,-6); scene.add(dl2);
-
   const group=new THREE.Group(); scene.add(group);
 
-  // ---- mouse / touch ----
+  // dynamic objects we update every frame without rebuild
+  let matchGroup=null;     // THREE.Group holding current-matching dimers
+  let probLineMesh=null;   // colored edges for P(e) view
+  let currentBuild=null;   // holds graph + geometry context
+
+  // ============ interaction ============
   let isDrag=false,isShift=false,px=0,py=0;
   let rotX=0.35,rotY=0.55,zoom=8,panX=0,panY=0;
   canvas.addEventListener('mousedown',e=>{isDrag=true;px=e.clientX;py=e.clientY;isShift=e.shiftKey;});
@@ -131,7 +213,7 @@
   },{passive:false});
   canvas.addEventListener('touchend',()=>isDrag=false);
 
-  // ---- torus coords ----
+  // ============ torus coords ============
   function torusPos(u,v,R,r){
     const a=u*Math.PI*2, b=v*Math.PI*2;
     return new THREE.Vector3(
@@ -140,167 +222,255 @@
       r*Math.sin(b)
     );
   }
+  // outward surface normal of the torus at (u,v)
+  function torusNormal(u,v){
+    const a=u*Math.PI*2, b=v*Math.PI*2;
+    return new THREE.Vector3(Math.cos(b)*Math.cos(a), Math.cos(b)*Math.sin(a), Math.sin(b)).normalize();
+  }
 
-  // ---- tile definitions ----
+  // ============ tiles ============
   function tile(type){
-    if(type===0){
-      return {
-        byParity:true,
-        sites:[{x:0.5,y:0.5}],
-        bonds:[{a:0,b:0,du:1,dv:0},{a:0,b:0,du:0,dv:1}]
-      };
-    }
-    if(type===1){
-      return {
-        sites:[
-          {x:0.000,y:0.000,color:0},{x:0.333,y:0.000,color:1},
-          {x:0.500,y:0.500,color:0},{x:0.833,y:0.500,color:1},
-        ],
-        bonds:[
-          {a:0,b:3,du:-1,dv:-1},{a:0,b:3,du:-1,dv:0},{a:0,b:1,du:0,dv:0},
-          {a:1,b:2,du:0,dv:-1},{a:1,b:2,du:0,dv:0},{a:2,b:3,du:0,dv:0},
-        ]
-      };
-    }
+    if(type===0) return {
+      byParity:true, sites:[{x:0.5,y:0.5}],
+      bonds:[{a:0,b:0,du:1,dv:0,name:'水平'},{a:0,b:0,du:0,dv:1,name:'垂直'}],
+      bondColors:[0x4db8ff,0xe0a82e]
+    };
+    if(type===1) return {
+      sites:[
+        {x:0.000,y:0.000,color:0},{x:0.333,y:0.000,color:1},
+        {x:0.500,y:0.500,color:0},{x:0.833,y:0.500,color:1}],
+      bonds:[
+        {a:0,b:3,du:-1,dv:-1,name:'a'},{a:0,b:3,du:-1,dv:0,name:'b'},{a:0,b:1,du:0,dv:0,name:'c'},
+        {a:1,b:2,du:0,dv:-1,name:'d'},{a:1,b:2,du:0,dv:0,name:'e'},{a:2,b:3,du:0,dv:0,name:'f'}],
+      bondColors:[0x4db8ff,0xe0a82e,0xc084fc,0x6ee7a8,0xff8fb1,0xffd166]
+    };
     return {
       sites:[
         {x:0.49,y:0.85,color:0},{x:0.15,y:0.85,color:1},
         {x:0.15,y:0.50,color:0},{x:0.84,y:0.50,color:1},
-        {x:0.50,y:0.16,color:1},{x:0.84,y:0.16,color:0},
-      ],
+        {x:0.50,y:0.16,color:1},{x:0.84,y:0.16,color:0}],
       bonds:[
-        {a:0,b:1,du:0,dv:0},{a:0,b:3,du:0,dv:0},{a:0,b:4,du:0,dv:0},
-        {a:1,b:2,du:0,dv:0},{a:2,b:4,du:0,dv:0},{a:3,b:5,du:0,dv:0},
-        {a:4,b:5,du:0,dv:0},
-        {a:0,b:4,du:0,dv:1},{a:1,b:5,du:-1,dv:1},{a:2,b:3,du:-1,dv:0},
-      ]
+        {a:0,b:1,du:0,dv:0,name:'1'},{a:0,b:3,du:0,dv:0,name:'2'},{a:0,b:4,du:0,dv:0,name:'3'},
+        {a:1,b:2,du:0,dv:0,name:'4'},{a:2,b:4,du:0,dv:0,name:'5'},{a:3,b:5,du:0,dv:0,name:'6'},
+        {a:4,b:5,du:0,dv:0,name:'7'},
+        {a:0,b:4,du:0,dv:1,name:'8'},{a:1,b:5,du:-1,dv:1,name:'9'},{a:2,b:3,du:-1,dv:0,name:'10'}],
+      bondColors:[0x4db8ff,0xe0a82e,0xc084fc,0x6ee7a8,0xff8fb1,0xffd166,
+                  0x5ad1d1,0xff8a4d,0xb59bff,0x9be36b]
     };
   }
 
-  // ================================================================
-  // Quiver computation via half-edge face traversal
-  // ================================================================
-  function computeQuiver(T, N){
+  // ============================================================
+  // GRAPH MODEL  (vertices, simple edges, faces) on the torus
+  // Mirrors the geometry used for rendering so positions match.
+  // ============================================================
+  function buildModel(T,N){
     const wN=k=>((k%N)+N)%N;
+    const colorOf=(gi,gj,s)=> T.byParity?((wN(gi)+wN(gj))%2):T.sites[s].color;
+    const id={}, verts=[];
+    for(let gi=0;gi<N;gi++)for(let gj=0;gj<N;gj++)for(let s=0;s<T.sites.length;s++){
+      const k=`${wN(gi)},${wN(gj)},${s}`;
+      if(id[k]===undefined){ id[k]=verts.length;
+        verts.push({ color:colorOf(gi,gj,s),
+          u:(wN(gi)+T.sites[s].x)/N, v:(wN(gj)+T.sites[s].y)/N }); }
+    }
+    // full embedded edges (with uv delta) for face traversal
+    const fullEdges=[]; const fullKey=new Map();
+    for(let gi=0;gi<N;gi++)for(let gj=0;gj<N;gj++)for(let bt=0;bt<T.bonds.length;bt++){
+      const bd=T.bonds[bt];
+      const ai=id[`${wN(gi)},${wN(gj)},${bd.a}`];
+      const bi=id[`${wN(gi+bd.du)},${wN(gj+bd.dv)},${bd.b}`];
+      if(ai===undefined||bi===undefined) continue;
+      const pa=verts[ai], pb=verts[bi];
+      let du=pb.u-pa.u, dv=pb.v-pa.v; du-=Math.round(du); dv-=Math.round(dv);
+      const k=`${Math.min(ai,bi)}_${Math.max(ai,bi)}_${Math.abs(du).toFixed(4)}_${Math.abs(dv).toFixed(4)}`;
+      if(fullKey.has(k)) continue;
+      fullKey.set(k, fullEdges.length);
+      fullEdges.push({a:ai,b:bi,du,dv,btype:bt});
+    }
+    // simple edges (collapse multi between same pair) for matching
+    const simpleKey=new Map(); const edges=[];
+    fullEdges.forEach(e=>{ const k=Math.min(e.a,e.b)+'_'+Math.max(e.a,e.b);
+      if(!simpleKey.has(k)){ simpleKey.set(k, edges.length);
+        edges.push({a:e.a,b:e.b,du:e.du,dv:e.dv,btype:e.btype}); } });
+    const adj=verts.map(()=>[]);
+    edges.forEach((e,ei)=>{ adj[e.a].push({nb:e.b,ei}); adj[e.b].push({nb:e.a,ei}); });
 
-    // サイト位置と色
-    const sitePos={};
-    for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
-      for(let s=0;s<T.sites.length;s++){
-        const st=T.sites[s];
-        const color=T.byParity?((wN(gi)+wN(gj))%2):st.color;
-        sitePos[`${wN(gi)},${wN(gj)},${s}`]={
-          u:(wN(gi)+st.x)/N, v:(wN(gj)+st.y)/N, color
-        };
-      }
-
-    // 全辺（最短ラップ差分付き）
-    const edges=[];
-    for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
-      for(const bd of T.bonds){
-        const ka=`${wN(gi)},${wN(gj)},${bd.a}`;
-        const kb=`${wN(gi+bd.du)},${wN(gj+bd.dv)},${bd.b}`;
-        const pa=sitePos[ka], pb=sitePos[kb];
-        if(!pa||!pb) continue;
-        let du=pb.u-pa.u, dv=pb.v-pa.v;
-        du-=Math.round(du); dv-=Math.round(dv);
-        edges.push({ka,kb,pa,pb,du,dv});
-      }
-
-    // ハーフエッジ構築（重複排除）
+    // ---- half-edge face traversal ----
     const heMap=new Map();
-    for(const e of edges){
-      const k_ab=e.ka+'|'+e.kb, k_ba=e.kb+'|'+e.ka;
-      if(!heMap.has(k_ab)) heMap.set(k_ab,{from:e.ka,to:e.kb,du: e.du,dv: e.dv});
-      if(!heMap.has(k_ba)) heMap.set(k_ba,{from:e.kb,to:e.ka,du:-e.du,dv:-e.dv});
+    for(const e of fullEdges){
+      const kab=e.a+'|'+e.b, kba=e.b+'|'+e.a;
+      if(!heMap.has(kab)) heMap.set(kab,{from:e.a,to:e.b,du:e.du,dv:e.dv});
+      if(!heMap.has(kba)) heMap.set(kba,{from:e.b,to:e.a,du:-e.du,dv:-e.dv});
     }
-    const halfEdges=[...heMap.values()];
-    const heIndex={}; halfEdges.forEach((he,i)=>{ heIndex[he.from+'|'+he.to]=i; });
-
-    // 各頂点のアウトハーフエッジを角度順ソート
-    const outEdges={};
-    halfEdges.forEach((he,i)=>{
-      if(!outEdges[he.from]) outEdges[he.from]=[];
-      outEdges[he.from].push({idx:i, ang:Math.atan2(he.dv,he.du)});
-    });
-    for(const k in outEdges) outEdges[k].sort((a,b)=>a.ang-b.ang);
-
-    // next half-edge（face traversal: twin → 反時計回り次）
-    const nextHE=new Int32Array(halfEdges.length).fill(-1);
-    halfEdges.forEach((he,i)=>{
-      const twinIdx=heIndex[he.to+'|'+he.from];
-      if(twinIdx===undefined) return;
-      const outB=outEdges[he.to];
-      if(!outB) return;
-      const pos=outB.findIndex(x=>x.idx===twinIdx);
-      if(pos<0) return;
-      // 角度昇順リストの中で「1つ前」= 反時計回り方向の次
-      nextHE[i]=outB[(pos-1+outB.length)%outB.length].idx;
-    });
-
-    // 面列挙
-    const faceOf=new Int32Array(halfEdges.length).fill(-1);
-    const faces=[];
-    for(let start=0;start<halfEdges.length;start++){
-      if(faceOf[start]>=0||nextHE[start]<0) continue;
-      const fid=faces.length;
-      const cycle=[];
-      let cur=start,steps=0;
-      while(faceOf[cur]<0&&steps<halfEdges.length){
-        faceOf[cur]=fid; cycle.push(cur);
-        cur=nextHE[cur]; steps++;
-        if(cur<0) break;
-      }
-      if(cycle.length<2) continue;
-      // 面の重心 (u,v) — ラップを考慮して最初の点を基準に累積
-      const he0=halfEdges[cycle[0]];
-      const u0=sitePos[he0.from].u, v0=sitePos[he0.from].v;
-      let su=0,sv=0;
-      cycle.forEach(hi=>{
-        const sp=sitePos[halfEdges[hi].from];
-        let du=sp.u-u0, dv=sp.v-v0;
-        du-=Math.round(du); dv-=Math.round(dv);
-        su+=u0+du; sv+=v0+dv;
-      });
-      const cu=(su/cycle.length+1)%1;
-      const cv=(sv/cycle.length+1)%1;
-      faces.push({cycle, u:cu, v:cv});
+    const he=[...heMap.values()];
+    const heIdx={}; he.forEach((h,i)=>heIdx[h.from+'|'+h.to]=i);
+    const out={}; he.forEach((h,i)=>{ (out[h.from]=out[h.from]||[]).push({i,ang:Math.atan2(h.dv,h.du)}); });
+    for(const k in out) out[k].sort((a,b)=>a.ang-b.ang);
+    const nextHE=new Int32Array(he.length).fill(-1);
+    he.forEach((h,i)=>{ const tw=heIdx[h.to+'|'+h.from]; if(tw===undefined)return;
+      const ob=out[h.to]; if(!ob)return; const p=ob.findIndex(x=>x.i===tw); if(p<0)return;
+      nextHE[i]=ob[(p-1+ob.length)%ob.length].i; });
+    const faceOf=new Int32Array(he.length).fill(-1); const faces=[]; const faceCentroids=[];
+    const seof=(x,y)=>simpleKey.get(Math.min(x,y)+'_'+Math.max(x,y));
+    for(let st=0;st<he.length;st++){
+      if(faceOf[st]>=0||nextHE[st]<0) continue;
+      const cyc=[]; let cur=st,steps=0;
+      while(faceOf[cur]<0&&steps<he.length){ faceOf[cur]=faces.length; cyc.push(cur); cur=nextHE[cur]; steps++; if(cur<0)break; }
+      if(cyc.length<3) continue;
+      const vseq=cyc.map(hi=>he[hi].from);
+      // centroid (for quiver)
+      const u0=verts[vseq[0]].u, v0=verts[vseq[0]].v; let su=0,sv=0;
+      vseq.forEach(vi=>{ let du=verts[vi].u-u0, dv=verts[vi].v-v0; du-=Math.round(du);dv-=Math.round(dv); su+=u0+du; sv+=v0+dv; });
+      const cu=(su/vseq.length+1)%1, cv=(sv/vseq.length+1)%1;
+      const eids=[]; let okFace=true;
+      for(let i=0;i<vseq.length;i++){ const e=seof(vseq[i],vseq[(i+1)%vseq.length]); if(e===undefined){okFace=false;break;} eids.push(e); }
+      const flippable=(okFace && vseq.length%2===0);
+      faces.push({vseq, eids, flippable, u:cu, v:cv});
     }
-
-    // 矢印：各辺について隣接2面を取得し白→黒の向き規則で矢印を向ける
-    // 向き規則: 辺を (白→黒) の向きに見たとき、左の面がtail・右の面がhead
-    // ハーフエッジ (白→黒) の属する面 = tail
-    // ハーフエッジ (黒→白) の属する面 = head
-    const arrows=[];
-    for(const e of edges){
-      const pa=sitePos[e.ka], pb=sitePos[e.kb];
-      const i_ab=heIndex[e.ka+'|'+e.kb];
-      const i_ba=heIndex[e.kb+'|'+e.ka];
-      if(i_ab===undefined||i_ba===undefined) continue;
-      const f_ab=faceOf[i_ab], f_ba=faceOf[i_ba];
-      if(f_ab<0||f_ba<0||f_ab===f_ba) continue;
-      let tail,head;
-      if(pa.color===0&&pb.color===1){ tail=f_ab; head=f_ba; }
-      else { tail=f_ba; head=f_ab; }
-      // 矢印の中点 = 辺の中点 (UV)
-      let mu=pa.u+e.du*0.5, mv=pa.v+e.dv*0.5;
-      mu=(mu+1)%1; mv=(mv+1)%1;
-      arrows.push({tail, head, mu, mv});
-    }
-
-    return {faces, arrows, sitePos, halfEdges, faceOf};
+    return {verts, edges, adj, n:verts.length, faces, T, N};
   }
 
-  // ================================================================
-  // Build 3D scene
-  // ================================================================
-  function disposeGroup(){
-    while(group.children.length){
-      const o=group.children[0];
-      if(o.geometry) o.geometry.dispose();
-      if(o.material) o.material.dispose();
-      group.remove(o);
+  // ---- initial perfect matching (bipartite augmenting paths) ----
+  function initialMatching(M){
+    const n=M.n; const matchV=new Int32Array(n).fill(-1), matchE=new Int32Array(n).fill(-1);
+    const whites=[]; M.verts.forEach((v,i)=>{ if(v.color===0) whites.push(i); });
+    function tryKuhn(u, seen){ for(const {nb} of M.adj[u]){ if(seen[nb])continue; seen[nb]=1;
+      if(matchV[nb]<0||tryKuhn(matchV[nb],seen)){ matchV[u]=nb;matchV[nb]=u;return true; } } return false; }
+    let cnt=0; for(const u of whites){ const seen=new Uint8Array(n); if(tryKuhn(u,seen)) cnt++; }
+    for(let v=0;v<n;v++) if(matchV[v]>v){ const f=M.adj[v].find(x=>x.nb===matchV[v]); if(f){matchE[v]=f.ei;matchE[matchV[v]]=f.ei;} }
+    return {matchV, matchE, perfect:(cnt*2===n)};
+  }
+
+  function weightOf(M, ei){ return weights[M.edges[ei].btype]; }
+
+  // ---- face flip (symmetric local update) ----
+  function faceFlip(M, st, rng){
+    const F=M.faces; if(!F.length) return false;
+    const f=F[(rng()*F.length)|0];
+    if(!f.flippable) return false;
+    const eids=f.eids, L=eids.length;
+    let aAll=true,bAll=true;
+    for(let i=0;i<L;i++){ const e=M.edges[eids[i]]; const matched=(st.matchE[e.a]===eids[i]);
+      if(i%2===0){ if(!matched) aAll=false; } else { if(!matched) bAll=false; } }
+    let curSet;
+    if(aAll&&!bAll) curSet=0; else if(bAll&&!aAll) curSet=1; else return false;
+    const cur=[],oth=[];
+    for(let i=0;i<L;i++){ if(i%2===curSet) cur.push(eids[i]); else oth.push(eids[i]); }
+    let num=1,den=1; oth.forEach(e=>num*=weightOf(M,e)); cur.forEach(e=>den*=weightOf(M,e));
+    if(rng()<Math.min(1,num/den)){ applyFlip(M,st,cur,oth); return true; }
+    return false;
+  }
+  function applyFlip(M,st,cur,oth){
+    cur.forEach(ei=>{ const e=M.edges[ei]; st.matchV[e.a]=-1;st.matchV[e.b]=-1;st.matchE[e.a]=-1;st.matchE[e.b]=-1; });
+    oth.forEach(ei=>{ const e=M.edges[ei]; st.matchV[e.a]=e.b;st.matchV[e.b]=e.a;st.matchE[e.a]=ei;st.matchE[e.b]=ei; });
+  }
+
+  // ---- exact configuration statistics (always correct) ----
+  // weight product of the current matching, and per-bond-type dimer counts
+  function configStats(M, st){
+    let logW=0; const byType=new Array(M.T.bonds.length).fill(0);
+    for(let v=0; v<M.n; v++){ const ei=st.matchE[v]; if(ei<0) continue;
+      const e=M.edges[ei]; if(e.a!==v) continue;
+      byType[e.btype]++;
+      logW+=Math.log(weightOf(M,ei));
     }
+    return {weightProd:Math.exp(logW), byType};
+  }
+
+  // ============ Monte Carlo controller ============
+  const mc = {
+    M:null, st:null, rng:null,
+    sweeps:0, acc:0, prop:0, samples:0,
+    freq:null,    // accumulated edge occupancy
+    nFaces:0,
+  };
+  function mkRng(seed){ let s=seed>>>0||1; return ()=>{ s=(s*1103515245+12345)&0x7fffffff; return s/0x7fffffff; }; }
+
+  function mcReset(){
+    if(!mc.M) return;
+    mc.st=initialMatching(mc.M);
+    mc.rng=mkRng((Date.now()&0x7fffffff)||12345);
+    mc.sweeps=0; mc.acc=0; mc.prop=0; mc.samples=0;
+    mc.freq=new Float64Array(mc.M.edges.length);
+    mc.nFaces=mc.M.faces.filter(f=>f.flippable).length;
+    updateStats();
+  }
+
+  function mcSweep(){
+    if(!mc.M||!mc.st||!mc.st.perfect) return;
+    const M=mc.M, st=mc.st, rng=mc.rng;
+    const flips=Math.max(1, mc.nFaces); // ~one attempt per flippable face
+    for(let i=0;i<flips;i++){
+      mc.prop++;
+      if(faceFlip(M,st,rng)) mc.acc++;
+    }
+    mc.sweeps++;
+    // sample occupancy after small burn-in
+    if(mc.sweeps>20){
+      const f=mc.freq;
+      for(let v=0; v<M.n; v++){ const ei=st.matchE[v]; if(ei>=0 && M.edges[ei].a===v) f[ei]+=1; }
+      mc.samples++;
+    }
+  }
+
+  // ============ stats UI ============
+  function updateStats(){
+    document.getElementById('st-sweeps').textContent=mc.sweeps;
+    document.getElementById('st-accept').textContent= mc.prop? (mc.acc/mc.prop*100).toFixed(1)+'%' : '—';
+    document.getElementById('st-faces').textContent= mc.nFaces;
+    document.getElementById('st-samples').textContent= mc.samples;
+    if(mc.st){ const cs=configStats(mc.M,mc.st);
+      const wp=cs.weightProd;
+      document.getElementById('st-wprod').textContent=
+        wp>=1e4||wp<1e-2 ? wp.toExponential(2) : wp.toFixed(2);
+    }
+    if(mc.samples>0 && mc.freq){
+      let s=0; for(let i=0;i<mc.freq.length;i++) s+=mc.freq[i]/mc.samples;
+      document.getElementById('st-meanp').textContent=(s/mc.freq.length).toFixed(3);
+    }
+  }
+
+  // ============ weights UI ============
+  function buildWeightUI(T){
+    const host=document.getElementById('weight-rows'); host.innerHTML='';
+    weights=T.bonds.map(()=>1);
+    T.bonds.forEach((bd,i)=>{
+      const row=document.createElement('div'); row.className='wrow';
+      const sw=document.createElement('div'); sw.className='swatch';
+      sw.style.background='#'+T.bondColors[i].toString(16).padStart(6,'0');
+      const lbl=document.createElement('span'); lbl.className='wlbl'; lbl.textContent=bd.name;
+      const rng=document.createElement('input'); rng.type='range';
+      rng.min='0.1'; rng.max='5'; rng.step='0.1'; rng.value='1';
+      const val=document.createElement('span'); val.className='wval'; val.textContent='1.0';
+      rng.addEventListener('input',()=>{ weights[i]=+rng.value; val.textContent=(+rng.value).toFixed(1);
+        // weights change => restart sampling statistics
+        if(mc.freq){ mc.freq.fill(0); mc.samples=0; mc.sweeps=Math.min(mc.sweeps,15); }
+      });
+      row.append(sw,lbl,rng,val); host.appendChild(row);
+    });
+  }
+
+  // ============================================================
+  // SCENE BUILD (static graph + torus surface + quiver)
+  // ============================================================
+  function disposeGroup(){
+    while(group.children.length){ const o=group.children[0];
+      if(o.geometry) o.geometry.dispose();
+      if(o.material){ if(Array.isArray(o.material)) o.material.forEach(m=>m.dispose()); else o.material.dispose(); }
+      group.remove(o); }
+    matchGroup=null; probLineMesh=null;
+  }
+
+  function color3(hex){ return new THREE.Color(hex); }
+  // viridis-ish ramp cold->hot for probability
+  function probColor(p){
+    // 0 -> cold blue, 0.5 -> purple, 1 -> hot red
+    const stops=[[0.0,0x2a4a6a],[0.4,0x4db8ff],[0.7,0xc084fc],[1.0,0xff5a4d]];
+    let lo=stops[0],hi=stops[stops.length-1];
+    for(let i=0;i<stops.length-1;i++){ if(p>=stops[i][0]&&p<=stops[i+1][0]){ lo=stops[i];hi=stops[i+1];break; } }
+    const t=(p-lo[0])/((hi[0]-lo[0])||1);
+    const c1=new THREE.Color(lo[1]), c2=new THREE.Color(hi[1]);
+    return c1.lerp(c2, Math.max(0,Math.min(1,t)));
   }
 
   function buildScene(){
@@ -310,204 +480,276 @@
       const R=torusR, r=torusR*0.38;
       const T=tile(latIndex);
       const N=T.byParity?(rep%2?rep+1:rep):rep;
-      const wN=k=>((k%N)+N)%N;
+      const M=buildModel(T,N);
+      currentBuild={M,R,r,T,N};
 
-      // 半透明トーラス面
+      // setup MC for this model
+      mc.M=M; mcReset();
+
+      const showGraph=(viewMode==='dimer');
+      const showProb =(viewMode==='prob');
+      const showMatch=(viewMode==='match');
+      const showQuiver=(viewMode==='quiver');
+
+      // ---- translucent torus surface ----
       const surf=new THREE.Mesh(
         new THREE.TorusGeometry(R,r,120,240),
         new THREE.MeshPhongMaterial({color:0x223044,shininess:6,
-          transparent:true,opacity:0.15,side:THREE.DoubleSide,depthWrite:false})
-      );
+          transparent:true,opacity:0.13,side:THREE.DoubleSide,depthWrite:false}));
       group.add(surf);
 
-      // ---- dimer グラフ ----
-      const showDimer=(viewMode==='dimer'||viewMode==='both');
-      const showQuiver=(viewMode==='quiver'||viewMode==='both');
-      const dimerOpacity=showQuiver&&!showDimer?0.0:showQuiver?0.25:0.7;
-
-      const uvOf=(gi,gj,s)=>{
-        const st=T.sites[s];
-        return {u:(wN(gi)+st.x)/N, v:(wN(gj)+st.y)/N};
-      };
-      const colorOf=(gi,gj,s)=>{
-        const st=T.sites[s];
-        return T.byParity?((wN(gi)+wN(gj))%2):st.color;
-      };
-
-      // 辺
       const SEG=14;
-      const lp=[];
-      let edgeCount=0;
-      for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
-        for(const bd of T.bonds){
-          const a=uvOf(gi,gj,bd.a);
-          const bRaw={u:(gi+bd.du+T.sites[bd.b].x)/N, v:(gj+bd.dv+T.sites[bd.b].y)/N};
-          let du=bRaw.u-a.u, dv=bRaw.v-a.v;
-          du-=Math.round(du); dv-=Math.round(dv);
-          let prev=null;
-          for(let t=0;t<=SEG;t++){
-            const f=t/SEG;
-            const p=torusPos(a.u+du*f,a.v+dv*f,R,r*1.02);
-            if(prev){lp.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);}
-            prev=p;
-          }
-          edgeCount++;
-        }
-      const lineGeo=new THREE.BufferGeometry();
-      lineGeo.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
-      group.add(new THREE.LineSegments(lineGeo,
-        new THREE.LineBasicMaterial({color:0x88aacc,transparent:true,opacity:dimerOpacity})));
+      const liftR=r*1.02;
 
-      // 頂点
-      const verts=[];
-      const vmap={};
-      for(let gi=0;gi<N;gi++) for(let gj=0;gj<N;gj++)
-        for(let s=0;s<T.sites.length;s++){
-          const k=`${wN(gi)},${wN(gj)},${s}`;
-          if(vmap[k]===undefined){
-            vmap[k]=verts.length;
-            verts.push({...uvOf(gi,gj,s), color:colorOf(gi,gj,s)});
-          }
-        }
-      const pos3=verts.map(p=>torusPos(p.u,p.v,R,r*1.02));
-      const sphGeo=new THREE.SphereGeometry(r*0.075,14,14);
-      [0,1].forEach(c=>{
-        const mat=new THREE.MeshPhongMaterial({
-          color:c===0?0xf0f0f0:0xe0a82e, emissive:c===0?0x000000:0x4a3000,
-          shininess:40, transparent:true, opacity:dimerOpacity>0?1:0
-        });
-        const members=verts.map((p,i)=>p.color===c?i:-1).filter(i=>i>=0);
-        const inst=new THREE.InstancedMesh(sphGeo,mat,members.length);
-        const d=new THREE.Object3D();
-        members.forEach((v,k)=>{d.position.copy(pos3[v]);d.updateMatrix();inst.setMatrixAt(k,d.matrix);});
-        group.add(inst);
-      });
+      // helper: polyline points along geodesic of an edge
+      function edgePoints(e, segs, lift){
+        const pa={u:M.verts[e.a].u, v:M.verts[e.a].v};
+        const pts=[];
+        for(let t=0;t<=segs;t++){ const f=t/segs;
+          pts.push(torusPos(pa.u+e.du*f, pa.v+e.dv*f, R, lift)); }
+        return pts;
+      }
 
-      // ---- quiver ----
-      if(showQuiver){
-        const qdata=computeQuiver(T,N);
-        const faces=qdata.faces;
-        const arrows=qdata.arrows;
+      // ---- base graph edges (faint, for context) ----
+      // In P(e) view we skip the faint base edges so the colored
+      // (temperature) edges read cleanly without grey overlay.
+      if((showGraph||showMatch||showQuiver)){
+        const lp=[];
+        M.edges.forEach(e=>{ const pts=edgePoints(e,SEG,liftR);
+          for(let i=0;i<pts.length-1;i++) lp.push(pts[i].x,pts[i].y,pts[i].z,pts[i+1].x,pts[i+1].y,pts[i+1].z); });
+        const g=new THREE.BufferGeometry();
+        g.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
+        const baseOpacity = showGraph?0.55 : (showQuiver?0.12 : 0.18);
+        group.add(new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+          color:0x6c84a0, transparent:true, opacity:baseOpacity })));
+      }
 
-        // quiver頂点（面の重心）をトーラスの少し外側に配置
-        const qr=r*1.06; // quiver は少し外側の層
-        const facePos3=faces.map(f=>torusPos(f.u,f.v,R,qr));
-
-        // quiver 頂点球（紫）
-        const qSphGeo=new THREE.SphereGeometry(r*0.09,14,14);
-        const qMat=new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060,shininess:60});
-        const qInst=new THREE.InstancedMesh(qSphGeo,qMat,facePos3.length);
-        const dd=new THREE.Object3D();
-        facePos3.forEach((p,i)=>{dd.position.copy(p);dd.updateMatrix();qInst.setMatrixAt(i,dd.matrix);});
-        group.add(qInst);
-
-        // quiver 矢印：tail → head をトーラスUV最短測地線で結ぶ
-        // 同一ペア間に複数矢印がある場合はUV空間で法線方向にオフセット
-        const QSEG=20;
-        const arrowPts=[];
-        const arrowHeadData=[];
-
-        // 同一ペアの多重度を数える
-        const pairCount={};
-        arrows.forEach(ar=>{
-          if(ar.tail===ar.head) return;
-          const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head);
-          pairCount[k]=(pairCount[k]||0)+1;
-        });
-        const pairIdx={};
-
-        arrows.forEach(ar=>{
-          if(ar.tail===ar.head) return;
-          const ft=faces[ar.tail], fh=faces[ar.head];
-          const tu=ft.u, tv=ft.v;
-          const hu=fh.u, hv=fh.v;
-
-          // tail → head の最短ラップ差分
-          let ddu=hu-tu, ddv=hv-tv;
-          ddu-=Math.round(ddu); ddv-=Math.round(ddv);
-
-          // 多重矢印のオフセット（UV法線方向に少しずらす）
-          const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head);
-          if(!pairIdx[k]) pairIdx[k]=0;
-          const idx=pairIdx[k]++;
-          const total=pairCount[k];
-          const offset=(idx-(total-1)/2)*0.012; // UV空間でのオフセット量
-          // 法線方向（UV平面内で90度回転）
-          const len=Math.sqrt(ddu*ddu+ddv*ddv)||1;
-          const nu=-ddv/len, nv=ddu/len;
-
-          // 始点・終点をオフセット
-          const su=(tu+nu*offset+1)%1, sv=(tv+nv*offset+1)%1;
-          const eu=(tu+ddu+nu*offset+1)%1, ev=(tv+ddv+nv*offset+1)%1;
-          // オフセット後の差分（再計算）
-          let fdu=eu-su, fdv=ev-sv;
-          fdu-=Math.round(fdu); fdv-=Math.round(fdv);
-
-          // 矢印先端を head 球の手前で止める（球半径分手前）
-          const stopFrac=0.82;
-          const pts=[];
-          for(let t=0;t<=QSEG;t++){
-            const f=(t/QSEG)*stopFrac;
-            pts.push(torusPos(su+fdu*f, sv+fdv*f, R, qr));
-          }
-
-          // ライン本体
-          for(let i=0;i<pts.length-1;i++){
-            arrowPts.push(pts[i].x,pts[i].y,pts[i].z,
-                          pts[i+1].x,pts[i+1].y,pts[i+1].z);
-          }
-          // 矢じり
-          const tip=pts[pts.length-1];
-          const pre=pts[pts.length-2];
-          const dir=new THREE.Vector3().subVectors(tip,pre).normalize();
-          arrowHeadData.push({pos:tip,dir});
-        });
-
-        // quiver 辺（ライン）
-        const qLineGeo=new THREE.BufferGeometry();
-        qLineGeo.setAttribute('position',new THREE.Float32BufferAttribute(arrowPts,3));
-        group.add(new THREE.LineSegments(qLineGeo,
-          new THREE.LineBasicMaterial({color:0xc084fc,transparent:true,opacity:0.85})));
-
-        // 矢じり（小さな円錐）
-        const coneGeo=new THREE.ConeGeometry(r*0.055, r*0.18, 8);
-        const coneMat=new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060});
-        arrowHeadData.forEach(({pos,dir})=>{
-          const cone=new THREE.Mesh(coneGeo,coneMat);
-          cone.position.copy(pos);
-          // 円錐のデフォルト軸=+Y → dir に向ける
-          const up=new THREE.Vector3(0,1,0);
-          const q=new THREE.Quaternion().setFromUnitVectors(up,dir);
-          cone.quaternion.copy(q);
-          group.add(cone);
+      // ---- vertices (white / black) ----
+      if(showVertices && (showGraph||showMatch||showProb)){
+        const sphGeo=new THREE.SphereGeometry(r*0.07,12,12);
+        [0,1].forEach(c=>{
+          const mat=new THREE.MeshPhongMaterial({
+            color:c===0?0xf0f0f0:0xe0a82e, emissive:c===0?0x000000:0x4a3000, shininess:40 });
+          const members=[]; M.verts.forEach((v,i)=>{ if(v.color===c) members.push(i); });
+          const inst=new THREE.InstancedMesh(sphGeo,mat,members.length);
+          const d=new THREE.Object3D();
+          members.forEach((vi,k)=>{ const p=torusPos(M.verts[vi].u,M.verts[vi].v,R,liftR);
+            d.position.copy(p); d.updateMatrix(); inst.setMatrixAt(k,d.matrix); });
+          group.add(inst);
         });
       }
 
+      // ---- probability-colored tubes (rebuilt each frame in updateProb) ----
+      if(showProb){
+        // placeholder mesh; colors updated live
+        currentBuild.probSegs=SEG;
+        currentBuild.probLift=r*1.04;
+      }
+
+      // ---- matching dimers (live group) ----
+      if(showMatch){
+        matchGroup=new THREE.Group(); group.add(matchGroup);
+        currentBuild.matchSegs=SEG; currentBuild.matchLift=r*1.05;
+      }
+
+      // ---- quiver (kept from original) ----
+      if(showQuiver) buildQuiver(M,R,r);
+
       const names=['正方格子','六角格子(1)','六角格子(2)'];
       document.getElementById('match-info').textContent=
-        `${names[latIndex]}  ·  ${verts.length} 頂点 / ${edgeCount} 辺  ·  ${N}×${N}`;
+        `${names[latIndex]} · ${M.n}頂点 / ${M.edges.length}辺 · ${N}×${N}` +
+        (mc.st&&mc.st.perfect?'':' · ⚠ PMなし');
       loading.classList.add('hidden');
-    },30);
+    },20);
   }
 
-  // ---- controls ----
+  // ---- live update for matching view ----
+  let matchTubeGeo=null, matchTubeMat=null;
+  function updateMatchView(){
+    if(viewMode!=='match'||!matchGroup||!currentBuild) return;
+    const {M,R}=currentBuild; const lift=currentBuild.matchLift; const segs=currentBuild.matchSegs;
+    const st=mc.st; if(!st) return;
+    // clear
+    while(matchGroup.children.length){ const o=matchGroup.children[0];
+      o.geometry&&o.geometry.dispose(); o.material&&o.material.dispose(); matchGroup.remove(o); }
+    // collect matched edges (once each)
+    const lp=[]; const T=M.T;
+    const segColors=[];
+    for(let v=0; v<M.n; v++){ const ei=st.matchE[v]; if(ei<0) continue; const e=M.edges[ei];
+      if(e.a!==v) continue;
+      const col=new THREE.Color(T.bondColors[e.btype]);
+      const pa={u:M.verts[e.a].u,v:M.verts[e.a].v};
+      let prev=null;
+      for(let t=0;t<=segs;t++){ const f=t/segs;
+        const p=torusPos(pa.u+e.du*f, pa.v+e.dv*f, R, lift);
+        if(prev){ lp.push(prev.x,prev.y,prev.z,p.x,p.y,p.z);
+          segColors.push(col.r,col.g,col.b,col.r,col.g,col.b); }
+        prev=p; }
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(lp,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(segColors,3));
+    const lines=new THREE.LineSegments(g, new THREE.LineBasicMaterial({
+      vertexColors:true, linewidth:3, transparent:false }));
+    matchGroup.add(lines);
+    // thicken with small spheres at midpoints to read as "dimers"
+    const dgeo=new THREE.SphereGeometry(currentBuild.r*0.05,8,8);
+    const matched=[];
+    for(let v=0; v<M.n; v++){ const ei=st.matchE[v]; if(ei<0) continue; const e=M.edges[ei]; if(e.a!==v) continue; matched.push(e); }
+    const inst=new THREE.InstancedMesh(dgeo,
+      new THREE.MeshPhongMaterial({color:0xffffff,emissive:0x222222,shininess:30}), matched.length);
+    const d=new THREE.Object3D();
+    matched.forEach((e,k)=>{ const pa={u:M.verts[e.a].u,v:M.verts[e.a].v};
+      const p=torusPos(pa.u+e.du*0.5, pa.v+e.dv*0.5, R, lift);
+      d.position.copy(p); d.updateMatrix(); inst.setMatrixAt(k,d.matrix); });
+    matchGroup.add(inst);
+  }
+
+  // ---- live update for probability view ----
+  function updateProbView(){
+    if(viewMode!=='prob'||!currentBuild||!mc.freq||mc.samples<1) return;
+    const {M,R}=currentBuild; const r=currentBuild.r;
+    const lift=r*1.035;
+    // Adaptive longitudinal segments: smooth ribbons on small lattices,
+    // capped vertex budget (~110k) on large ones to keep rebuilds light.
+    const segs=Math.max(10, Math.min(40, Math.round(110000/(M.edges.length*6))));
+    if(probLineMesh){ probLineMesh.geometry.dispose(); probLineMesh.material.dispose(); group.remove(probLineMesh); probLineMesh=null; }
+    // Each edge becomes a flat ribbon hugging the torus surface. Ribbon
+    // half-width and brightness scale with occupancy, so heavily used
+    // edges read as wide glowing bands; adjacent hot edges visually merge
+    // into surface-like patches.
+    const positions=[], colors=[], normals=[];
+    const maxHalf=r*0.16;   // widest ribbon (p=1)
+    const minHalf=r*0.012;  // thinnest ribbon (p≈0)
+    const tmpT=new THREE.Vector3();
+    for(let ei=0; ei<M.edges.length; ei++){
+      const p=Math.min(1, mc.freq[ei]/mc.samples);
+      const e=M.edges[ei];
+      const c=probColor(p);
+      const bri=0.16+0.84*Math.min(1,p*1.25);
+      const cr=c.r*bri, cg=c.g*bri, cb=c.b*bri;
+      const half=minHalf+(maxHalf-minHalf)*Math.pow(p,0.7);
+      const ua=M.verts[e.a].u, va=M.verts[e.a].v;
+      // build a strip of (segs+1) cross-sections, each with left/right pts
+      let pts=[], nrms=[], wdirs=[];
+      for(let t=0;t<=segs;t++){ const f=t/segs;
+        const u=ua+e.du*f, v=va+e.dv*f;
+        pts.push(torusPos(u,v,R,lift));
+        nrms.push(torusNormal(u,v));
+      }
+      // tangents and width dirs (width = tangent x normal)
+      for(let t=0;t<=segs;t++){
+        const a=pts[Math.max(0,t-1)], b=pts[Math.min(segs,t+1)];
+        tmpT.subVectors(b,a).normalize();
+        const w=new THREE.Vector3().crossVectors(tmpT,nrms[t]).normalize();
+        wdirs.push(w);
+      }
+      // emit quads between consecutive cross-sections (two triangles each)
+      for(let t=0;t<segs;t++){
+        const c0=pts[t], c1=pts[t+1], w0=wdirs[t], w1=wdirs[t+1], n0=nrms[t], n1=nrms[t+1];
+        const L0=new THREE.Vector3().copy(c0).addScaledVector(w0,-half);
+        const Rr0=new THREE.Vector3().copy(c0).addScaledVector(w0, half);
+        const L1=new THREE.Vector3().copy(c1).addScaledVector(w1,-half);
+        const Rr1=new THREE.Vector3().copy(c1).addScaledVector(w1, half);
+        // tri 1: L0,Rr0,L1 ; tri 2: Rr0,Rr1,L1
+        const quad=[ [L0,n0],[Rr0,n0],[L1,n1], [Rr0,n0],[Rr1,n1],[L1,n1] ];
+        for(const [vtx,nn] of quad){
+          positions.push(vtx.x,vtx.y,vtx.z);
+          normals.push(nn.x,nn.y,nn.z);
+          colors.push(cr,cg,cb);
+        }
+      }
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    g.setAttribute('normal',new THREE.Float32BufferAttribute(normals,3));
+    const mat=new THREE.MeshBasicMaterial({ vertexColors:true, side:THREE.DoubleSide,
+      transparent:true, opacity:0.96 });
+    probLineMesh=new THREE.Mesh(g,mat);
+    group.add(probLineMesh);
+  }
+
+  // ============================================================
+  // QUIVER (adapted from the original file)
+  // ============================================================
+  function computeQuiverArrows(M){
+    // faces already computed in M; build arrows white->black rule
+    // map each simple edge to its two adjacent faces
+    const faceOfEdge={}; // ei -> [faceIdx,...]
+    M.faces.forEach((f,fi)=>{ f.eids.forEach(ei=>{ (faceOfEdge[ei]=faceOfEdge[ei]||[]).push(fi); }); });
+    const arrows=[];
+    M.edges.forEach((e,ei)=>{ const fs=faceOfEdge[ei]; if(!fs||fs.length<2) return;
+      let tail,head;
+      const whiteFirst = M.verts[e.a].color===0;
+      if(whiteFirst){ tail=fs[0]; head=fs[1]; } else { tail=fs[1]; head=fs[0]; }
+      arrows.push({tail,head}); });
+    return arrows;
+  }
+  function buildQuiver(M,R,r){
+    const qr=r*1.06;
+    const faces=M.faces;
+    const facePos3=faces.map(f=>torusPos(f.u,f.v,R,qr));
+    const qSphGeo=new THREE.SphereGeometry(r*0.09,14,14);
+    const qInst=new THREE.InstancedMesh(qSphGeo,
+      new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060,shininess:60}), facePos3.length);
+    const dd=new THREE.Object3D();
+    facePos3.forEach((p,i)=>{dd.position.copy(p);dd.updateMatrix();qInst.setMatrixAt(i,dd.matrix);});
+    group.add(qInst);
+    const arrows=computeQuiverArrows(M);
+    const QSEG=18; const arrowPts=[]; const heads=[];
+    const pairCount={}, pairIdx={};
+    arrows.forEach(ar=>{ if(ar.tail===ar.head)return; const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head); pairCount[k]=(pairCount[k]||0)+1; });
+    arrows.forEach(ar=>{ if(ar.tail===ar.head)return;
+      const ft=faces[ar.tail],fh=faces[ar.head];
+      let ddu=fh.u-ft.u, ddv=fh.v-ft.v; ddu-=Math.round(ddu); ddv-=Math.round(ddv);
+      const k=Math.min(ar.tail,ar.head)+'_'+Math.max(ar.tail,ar.head);
+      if(!pairIdx[k])pairIdx[k]=0; const idx=pairIdx[k]++; const total=pairCount[k];
+      const offset=(idx-(total-1)/2)*0.012; const len=Math.sqrt(ddu*ddu+ddv*ddv)||1;
+      const nu=-ddv/len, nv=ddu/len;
+      const su=(ft.u+nu*offset+1)%1, sv=(ft.v+nv*offset+1)%1;
+      const eu=(ft.u+ddu+nu*offset+1)%1, ev=(ft.v+ddv+nv*offset+1)%1;
+      let fdu=eu-su, fdv=ev-sv; fdu-=Math.round(fdu); fdv-=Math.round(fdv);
+      const stopFrac=0.82; const pts=[];
+      for(let t=0;t<=QSEG;t++){ const f=(t/QSEG)*stopFrac; pts.push(torusPos(su+fdu*f,sv+fdv*f,R,qr)); }
+      for(let i=0;i<pts.length-1;i++) arrowPts.push(pts[i].x,pts[i].y,pts[i].z,pts[i+1].x,pts[i+1].y,pts[i+1].z);
+      const tip=pts[pts.length-1],pre=pts[pts.length-2];
+      heads.push({pos:tip,dir:new THREE.Vector3().subVectors(tip,pre).normalize()});
+    });
+    const qg=new THREE.BufferGeometry(); qg.setAttribute('position',new THREE.Float32BufferAttribute(arrowPts,3));
+    group.add(new THREE.LineSegments(qg,new THREE.LineBasicMaterial({color:0xc084fc,transparent:true,opacity:0.85})));
+    const coneGeo=new THREE.ConeGeometry(r*0.055,r*0.18,8);
+    const coneMat=new THREE.MeshPhongMaterial({color:0xc084fc,emissive:0x2a0060});
+    heads.forEach(({pos,dir})=>{ const cone=new THREE.Mesh(coneGeo,coneMat); cone.position.copy(pos);
+      const q=new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0,1,0),dir); cone.quaternion.copy(q); group.add(cone); });
+  }
+
+  // ============ controls ============
   document.querySelectorAll('#lat-seg button').forEach(btn=>{
     btn.addEventListener('click',function(){
       document.querySelectorAll('#lat-seg button').forEach(b=>b.classList.remove('active'));
-      this.classList.add('active'); latIndex=+this.dataset.lat; buildScene();
+      this.classList.add('active'); latIndex=+this.dataset.lat;
+      buildWeightUI(tile(latIndex)); buildScene();
     });
   });
   document.querySelectorAll('#view-seg button').forEach(btn=>{
     btn.addEventListener('click',function(){
-      document.querySelectorAll('#view-seg button').forEach(b=>{
-        b.classList.remove('active'); b.classList.remove('active-q');
-      });
+      document.querySelectorAll('#view-seg button').forEach(b=>{ b.classList.remove('active','active-q','active-m'); });
       viewMode=this.dataset.view;
       if(viewMode==='quiver') this.classList.add('active-q');
+      else if(viewMode==='match'||viewMode==='prob') this.classList.add('active-m');
       else this.classList.add('active');
+      // entering P(e) view: hide vertices by default so edge temperature
+      // is unobstructed; leaving it restores them.
+      if(viewMode==='prob') showVertices=false;
+      else showVertices=true;
+      syncVtxButton();
       buildScene();
     });
   });
+  const vtxBtn=document.getElementById('vtx-toggle');
+  function syncVtxButton(){ vtxBtn.textContent=showVertices?'ON':'OFF'; vtxBtn.classList.toggle('active',showVertices); }
+  vtxBtn.addEventListener('click',function(){ showVertices=!showVertices; syncVtxButton(); buildScene(); });
   document.getElementById('torus-r').addEventListener('input',function(){
     torusR=+this.value; document.getElementById('torus-r-val').textContent=torusR.toFixed(1); buildScene();
   });
@@ -515,15 +757,41 @@
     rep=+this.value; document.getElementById('rep-val').textContent=rep+'×'+rep; buildScene();
   });
   document.getElementById('auto-rot').addEventListener('input',function(){ autoSpeed=+this.value; });
+  document.getElementById('mc-speed').addEventListener('input',function(){ mcSpeed=+this.value; });
+  document.getElementById('btn-run').addEventListener('click',function(){
+    mcRunning=!mcRunning; this.classList.toggle('active-m',mcRunning); this.textContent=mcRunning?'▶ RUN':'⏸ PAUSE';
+  });
+  document.getElementById('btn-step').addEventListener('click',()=>{ for(let i=0;i<5;i++) mcSweep(); updateStats(); });
+  document.getElementById('btn-reset').addEventListener('click',()=>{ mcReset(); });
+  panelToggle.addEventListener('click',()=>{ panel.classList.toggle('collapsed'); panelToggle.classList.toggle('show', panel.classList.contains('collapsed')); });
 
   window.addEventListener('resize',()=>{
-    const W=wrap.clientWidth, H=wrap.clientHeight;
+    const W=wrap.clientWidth,H=wrap.clientHeight;
     renderer.setSize(W,H); camera.aspect=W/H; camera.updateProjectionMatrix();
   });
 
-  let autoRotY=0;
+  // ============ animation loop ============
+  let autoRotY=0, frame=0, statTimer=0;
   function animate(){
     requestAnimationFrame(animate);
+    // MC stepping
+    if(mcRunning && mc.M && mc.st && mc.st.perfect){
+      const sweepsThisFrame=Math.max(1, Math.round(mcSpeed/10));
+      for(let i=0;i<sweepsThisFrame;i++) mcSweep();
+    }
+    // live visual updates
+    frame++;
+    if(viewMode==='match') updateMatchView();
+    else if(viewMode==='prob'){
+      // rebuild interval scales with mesh size so large lattices don't
+      // hitch: ~18 frames for small, up to ~48 for the heaviest.
+      const ec = currentBuild&&currentBuild.M ? currentBuild.M.edges.length : 500;
+      const probInterval = Math.max(18, Math.min(48, Math.round(ec/45)));
+      if(frame%probInterval===0) updateProbView();
+    }
+    // stats throttled
+    statTimer++; if(statTimer>15){ statTimer=0; updateStats(); }
+
     if(!isDrag) autoRotY+=autoSpeed*0.0003;
     group.rotation.x=rotX; group.rotation.y=rotY+autoRotY;
     group.position.set(panX,panY,0);
@@ -531,7 +799,12 @@
     renderer.render(scene,camera);
   }
 
-  buildScene(); animate();
+  // ============ init ============
+  buildWeightUI(tile(latIndex));
+  document.getElementById('btn-run').textContent='⏸ PAUSE';
+  syncVtxButton();
+  buildScene();
+  animate();
 })();
 </script>
 </body>
