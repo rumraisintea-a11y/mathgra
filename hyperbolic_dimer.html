@@ -55,8 +55,8 @@
   <aside>
     <h1>Double Circle Packing<small>Dimer model · ℍ² Poincaré disk</small></h1>
     <p class="sub">論文 Li (arXiv:2406.08615) Def 2.3。正則双曲タイリング {p,q} の
-    <b>厳密な</b>二重円充填上の二部グラフ Ǧ。<b>黒点 = 円の中心</b>(primal頂点○・dual面○の両方、
-    どちらも黒)、<b>白点 = 円どうしの接点</b>(= G の辺 = G⁺ の双対辺、一点)。
+    <b>厳密な</b>二重円充填上の二部グラフ Ǧ。<b>黒点 = 円の中心</b>(primal頂点・dual面中心、
+    <b>どちらも黒点</b>)、<b>白点 = 円どうしの接点</b>(= G の辺 = G⁺ の双対辺、一点)。
     各白点は隣接する黒中心(primal 2 + dual ≤2)に接続。Ǧ 上の完全マッチング(ダイマー)を表示。</p>
 
     <div class="grp"><label>Tiling {p, q}</label>
@@ -78,7 +78,7 @@
       <div class="toggle"><span>Dual graph G⁺ (gray)</span><div class="switch" data-k="gd"></div></div>
       <div class="toggle"><span>Bipartite graph Ǧ</span><div class="switch" data-k="bp"></div></div>
       <div class="toggle"><span>● Black = dual centers</span><div class="switch on" data-k="bk"></div></div>
-      <div class="toggle"><span>● Red = primal points</span><div class="switch on" data-k="pp"></div></div>
+      <div class="toggle"><span>● Black = primal centers</span><div class="switch on" data-k="pp"></div></div>
       <div class="toggle"><span>○ White = tangent points</span><div class="switch on" data-k="wt"></div></div>
       <div class="toggle"><span>Dimer cover</span><div class="switch on" data-k="dm"></div></div>
     </div>
@@ -89,8 +89,8 @@
       <span><i style="background:var(--dual)"></i>dual 円充填 (blue)</span>
       <span><span class="bar" style="border-color:var(--primalEdge)"></span>primal graph G</span>
       <span><span class="bar" style="border-color:var(--dualEdge)"></span>dual graph G⁺</span>
-      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(真の黒点 · dual)</span>
-      <span><i style="background:#e84a3c;border:2px solid #5a0f09"></i>● red = <b>primal点</b>(黒点ではない)</span>
+      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(dual面中心)</span>
+      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(primal頂点 · 同じく黒点)</span>
       <span><i style="background:var(--white);border:2px solid #caa018"></i>○ white = 円の<b>接点</b> (辺 = ダイマー位置)</span>
       <span><span class="bar" style="border-color:var(--dimer)"></span>dimer (matching)</span>
     </div>
@@ -307,7 +307,7 @@ function render(){
 
   if(show.dm){const g=el('g',{});
     D.matching.forEach(m=>{
-      if(m.btype==='p' && !show.pdm) return;   // primal中心からは線を伸ばさない
+      // 論文どおり primal頂点も dual面中心も同じ黒点。両方へダイマー線を描く。
       g.appendChild(el('line',{x1:m.a.x,y1:m.a.y,x2:m.b.x,y2:m.b.y,
         stroke:'var(--dimer)','stroke-width':0.017,'stroke-linecap':'round',opacity:0.95}));
     });
@@ -330,11 +330,10 @@ function render(){
     T.faces.forEach(f=>g.appendChild(el('circle',{cx:f.center.x,cy:f.center.y,r:0.0135,fill:'#000',stroke:'#cdd2d8','stroke-width':0.0022,opacity:0.96})));
     svg.appendChild(g);}
 
-  // primal points = DISTINCT (non-black) class -> red fill, matching the primal
-  // circle color. No dimer lines leave these (see show.dm filter). Toggle: pp.
+  // primal points = 論文 Def 2.3 では円の中心 = 黒点。dual面中心と同じ黒で描画。
   if(show.pp){const g=el('g',{});const seen=new Set();
     T.edges.forEach(e=>[e.a,e.b].forEach(v=>{if(seen.has(v))return;seen.add(v);
-      g.appendChild(el('circle',{cx:T.verts[v].x,cy:T.verts[v].y,r:0.012,fill:'#e84a3c',stroke:'#5a0f09','stroke-width':0.0025,opacity:0.96}));}));
+      g.appendChild(el('circle',{cx:T.verts[v].x,cy:T.verts[v].y,r:0.0135,fill:'#000',stroke:'#cdd2d8','stroke-width':0.0022,opacity:0.96}));}));
     svg.appendChild(g);}
 }
 
@@ -343,7 +342,7 @@ function rebuild(reshuffleOnly){
   state.D=buildDimer(state.T);render();
   const D=state.D, ok=D.covered===D.W;
   const st=document.getElementById('status');
-  if(st)st.innerHTML=`白点 ${D.W} ／ 黒点 ${D.B}<br>ダイマー被覆 <b style="color:${ok?'#7ec96b':'#e85a5a'}">${D.covered}/${D.W}</b> `
+  if(st)st.innerHTML=`白点 ${D.W} ／ 黒点 ${D.B}（primal頂点+dual面中心）<br>ダイマー被覆 <b style="color:${ok?'#7ec96b':'#e85a5a'}">${D.covered}/${D.W}</b> `
     +(ok?'白完全マッチング ✓':'⚠ 未被覆あり')
     +`<br><span style="color:#6f7884">余り黒点 ${D.B-D.covered} 個（境界・χ由来）</span>`;
 }
