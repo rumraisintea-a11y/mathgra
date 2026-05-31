@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dimer Height Function on Torus &middot; Square &amp; Hex</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root { --bg:#0e0e12; --panel:#17171d; --panel2:#1d1d25; --border:#33333d;
+    --accent1:#e0a82e; --accent2:#4db8ff; --accent3:#c084fc; --hot:#ff5a4d;
+    --text:#e6e6ea; --text-dim:#8a8a96; --font:'JetBrains Mono',monospace; }
+  body { background:var(--bg); color:var(--text); font-family:var(--font);
+    height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  header { display:flex; align-items:center; gap:14px; padding:8px 16px;
+    border-bottom:1px solid var(--border); background:var(--panel); flex-shrink:0; flex-wrap:wrap; }
+  header h1 { font-size:12px; font-weight:600; letter-spacing:.13em;
+    color:var(--accent1); text-transform:uppercase; white-space:nowrap; }
+  .controls { display:flex; align-items:center; gap:13px; flex-wrap:wrap; flex:1; }
+  .ctrl-group { display:flex; align-items:center; gap:7px; font-size:11px;
+    color:var(--text-dim); letter-spacing:.04em; }
+  .ctrl-group label { white-space:nowrap; }
+  input[type=range] { -webkit-appearance:none; width:80px; height:3px;
+    background:var(--border); border-radius:2px; outline:none; cursor:pointer; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px;
+    border-radius:50%; background:var(--accent2); cursor:pointer; }
+  input[type=range]::-moz-range-thumb { width:12px; height:12px; border:none;
+    border-radius:50%; background:var(--accent2); cursor:pointer; }
+  .val-badge { font-size:11px; color:var(--accent2); min-width:30px; }
+  button { font-family:var(--font); font-size:11px; letter-spacing:.06em; padding:4px 11px;
+    background:transparent; border:1px solid var(--border); color:var(--text); cursor:pointer;
+    transition:border-color .15s,color .15s,background .15s; text-transform:uppercase; }
+  button:hover { border-color:var(--accent1); color:var(--accent1); }
+  button.active { border-color:var(--accent1); color:#fff; background:var(--accent1); }
+  .seg { display:flex; gap:0; }
+  .seg button { border-right-width:0; }
+  .seg button:last-child { border-right-width:1px; }
+  #canvas-wrap { flex:1; position:relative; overflow:hidden; }
+  canvas#c3d { display:block; width:100%; height:100%; }
+  .hint { position:absolute; bottom:12px; right:14px; font-size:10px;
+    color:var(--text-dim); pointer-events:none; line-height:1.7; text-align:right; }
+  #loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    background:var(--bg); font-size:12px; color:var(--text-dim); letter-spacing:.1em;
+    transition:opacity .4s; z-index:5; }
+  #loading.hidden { opacity:0; pointer-events:none; }
+  #panel { position:absolute; top:12px; left:12px; width:272px; background:var(--panel);
+    border:1px solid var(--border); border-radius:4px; padding:12px 13px; z-index:4;
+    font-size:11px; max-height:calc(100% - 24px); overflow-y:auto; }
+  #panel h2 { font-size:10px; letter-spacing:.12em; color:var(--accent1); text-transform:uppercase;
+    margin-bottom:9px; border-bottom:1px solid var(--border); padding-bottom:6px; }
+  #panel h2:not(:first-child){ margin-top:14px; }
+  .stat { display:flex; justify-content:space-between; margin-bottom:5px; color:var(--text-dim); }
+  .stat b { color:var(--text); font-weight:400; }
+  .stat b.ok { color:#6ee7a8; }
+  .mc-btns { display:flex; gap:6px; margin-top:9px; }
+  .mc-btns button { flex:1; padding:5px 0; font-size:10px; }
+  .note { font-size:9px; color:var(--text-dim); line-height:1.65; margin-top:9px;
+    padding-top:9px; border-top:1px solid var(--border); }
+  .note b { color:var(--accent3); font-weight:400; }
+  .legend { display:flex; align-items:center; gap:6px; margin-top:9px; font-size:9px; color:var(--text-dim); }
+  .legend .grad { flex:1; height:8px; border-radius:3px;
+    background:linear-gradient(90deg,#2b5fa5,#4db8ff,#f1efe8,#e0a82e,#ff5a4d); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Dimer Height &middot; Torus</h1>
+  <div class="controls">
+    <div class="ctrl-group">
+      <label>MODEL</label>
+      <div class="seg" id="lat-seg">
+        <button data-lat="0" class="active">正方</button>
+        <button data-lat="1">六角1</button>
+        <button data-lat="2">六角2</button>
+      </div>
+    </div>
+    <div class="ctrl-group">
+      <label>REPEAT</label>
+      <input type="range" id="rep" min="2" max="10" value="5" step="1">
+      <span class="val-badge" id="rep-val">5×5</span>
+    </div>
+    <div class="ctrl-group">
+      <label>AMPLITUDE</label>
+      <input type="range" id="amp" min="0" max="100" value="20" step="1">
+      <span class="val-badge" id="amp-val">0.20</span>
+    </div>
+    <div class="ctrl-group">
+      <label>SPIN</label>
+      <input type="range" id="auto-rot" min="0" max="10" value="2" step="1">
+    </div>
+    <div class="ctrl-group">
+      <label>DIMERS</label>
+      <button id="dimer-toggle" class="active">ON</button>
+    </div>
+  </div>
+</header>
+<div id="canvas-wrap">
+  <canvas id="c3d"></canvas>
+  <div id="panel">
+    <h2>高さ関数 height function</h2>
+    <div class="legend"><span>低</span><div class="grad"></div><span>高</span></div>
+
+    <h2>傾き slope (winding)</h2>
+    <div class="stat"><span>u方向 a</span><b id="hx">—</b></div>
+    <div class="stat"><span>v方向 b</span><b id="hy">—</b></div>
+    <div class="stat"><span>表面</span><b id="seam" class="ok">—</b></div>
+
+    <h2>Monte Carlo</h2>
+    <div class="stat"><span>状態 sweeps</span><b id="st-sweeps">0</b></div>
+    <div class="stat"><span>採択率</span><b id="st-accept">—</b></div>
+    <div class="mc-btns">
+      <button id="btn-run" class="active">⏸ PAUSE</button>
+      <button id="btn-step">STEP</button>
+      <button id="btn-reset">RESET</button>
+    </div>
+    <div class="ctrl-group" style="margin-top:9px;">
+      <label style="min-width:42px;">SPEED</label>
+      <input type="range" id="mc-speed" min="1" max="200" value="40" step="1" style="flex:1;width:auto;">
+    </div>
+
+    <div class="note">
+      各面に整数の高さ h を割り当て、トーラス面をその位置で法線方向に
+      <b>h × amplitude</b> だけ変位させています。隣の面へ辺をまたぐとき、
+      白頂点を左に見て進むなら 非ダイマー=+1 / ダイマー=−(次数−1)
+      で h を伝播。<br><br>
+      高さの線形成分（平均勾配）を最小二乗で推定して差し引いているため、
+      正方・六角どちらでもトーラスは<b>常になめらかに閉じます</b>（崖なし）。<br><br>
+      a, b はそのセクターの傾きの実測値で、これが相（液体・固体・気体）を
+      決めます。MODEL で格子を切り替えられます。
+    </div>
+  </div>
+  <div id="loading">BUILDING SCENE...</div>
+  <div class="hint">Drag: rotate<br>Scroll: zoom<br>Shift+drag: pan</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+  'use strict';
+  let torusR=2.8, autoSpeed=2, rep=5, amp=0.20, latIndex=0;
+  let mcRunning=true, mcSpeed=40, showDimers=true;
+  let weights=[];
+
+  const wrap=document.getElementById('canvas-wrap');
+  const canvas=document.getElementById('c3d');
+  const loading=document.getElementById('loading');
+
+  const renderer=new THREE.WebGLRenderer({canvas,antialias:true});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(wrap.clientWidth,wrap.clientHeight);
+  renderer.setClearColor(0x0e0e12,1);
+
+  const scene=new THREE.Scene();
+  const camera=new THREE.PerspectiveCamera(50,wrap.clientWidth/wrap.clientHeight,0.01,400);
+  camera.position.set(0,0,8);
+  scene.add(new THREE.AmbientLight(0xffffff,0.78));
+  const dl1=new THREE.DirectionalLight(0xffffff,0.9); dl1.position.set(6,9,6); scene.add(dl1);
+  const dl2=new THREE.DirectionalLight(0x88aaff,0.4); dl2.position.set(-6,-4,-6); scene.add(dl2);
+  const group=new THREE.Group(); scene.add(group);
+
+  let surfMesh=null, dimerMesh=null, currentBuild=null;
+
+  let isDrag=false,isShift=false,px=0,py=0;
+  let rotX=0.5,rotY=0.6,zoom=8,panX=0,panY=0;
+  canvas.addEventListener('mousedown',e=>{isDrag=true;px=e.clientX;py=e.clientY;isShift=e.shiftKey;});
+  window.addEventListener('mousemove',e=>{ if(!isDrag)return;
+    const dx=e.clientX-px,dy=e.clientY-py;
+    if(isShift){panX+=dx*0.005;panY-=dy*0.005;}else{rotY+=dx*0.01;rotX+=dy*0.01;}
+    px=e.clientX;py=e.clientY; });
+  window.addEventListener('mouseup',()=>isDrag=false);
+  canvas.addEventListener('wheel',e=>{zoom=Math.max(2,Math.min(120,zoom+e.deltaY*0.02));e.preventDefault();},{passive:false});
+  canvas.addEventListener('touchstart',e=>{isDrag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
+  canvas.addEventListener('touchmove',e=>{ if(!isDrag)return;
+    rotY+=(e.touches[0].clientX-px)*0.01;rotX+=(e.touches[0].clientY-py)*0.01;
+    px=e.touches[0].clientX;py=e.touches[0].clientY;e.preventDefault(); },{passive:false});
+  canvas.addEventListener('touchend',()=>isDrag=false);
+
+  function torusPos(u,v,R,r){
+    const a=u*Math.PI*2,b=v*Math.PI*2;
+    return new THREE.Vector3((R+r*Math.cos(b))*Math.cos(a),(R+r*Math.cos(b))*Math.sin(a),r*Math.sin(b));
+  }
+  function torusNormal(u,v){
+    const a=u*Math.PI*2,b=v*Math.PI*2;
+    return new THREE.Vector3(Math.cos(b)*Math.cos(a),Math.cos(b)*Math.sin(a),Math.sin(b)).normalize();
+  }
+
+  function tile(type){
+    if(type===0) return { byParity:true, sites:[{x:0.5,y:0.5}],
+      bonds:[{a:0,b:0,du:1,dv:0,name:'水平'},{a:0,b:0,du:0,dv:1,name:'垂直'}] };
+    if(type===1) return { sites:[
+      {x:0.000,y:0.000,color:0},{x:0.333,y:0.000,color:1},
+      {x:0.500,y:0.500,color:0},{x:0.833,y:0.500,color:1}],
+      bonds:[{a:0,b:3,du:-1,dv:-1,name:'a'},{a:0,b:3,du:-1,dv:0,name:'b'},{a:0,b:1,du:0,dv:0,name:'c'},
+             {a:1,b:2,du:0,dv:-1,name:'d'},{a:1,b:2,du:0,dv:0,name:'e'},{a:2,b:3,du:0,dv:0,name:'f'}] };
+    return { sites:[
+      {x:0.49,y:0.85,color:0},{x:0.15,y:0.85,color:1},
+      {x:0.15,y:0.50,color:0},{x:0.84,y:0.50,color:1},
+      {x:0.50,y:0.16,color:1},{x:0.84,y:0.16,color:0}],
+      bonds:[{a:0,b:1,du:0,dv:0,name:'1'},{a:0,b:3,du:0,dv:0,name:'2'},{a:0,b:4,du:0,dv:0,name:'3'},
+             {a:1,b:2,du:0,dv:0,name:'4'},{a:2,b:4,du:0,dv:0,name:'5'},{a:3,b:5,du:0,dv:0,name:'6'},
+             {a:4,b:5,du:0,dv:0,name:'7'},
+             {a:0,b:4,du:0,dv:1,name:'8'},{a:1,b:5,du:-1,dv:1,name:'9'},{a:2,b:3,du:-1,dv:0,name:'10'}] };
+  }
+
+  function buildModel(T,N){
+    const wN=k=>((k%N)+N)%N;
+    const colorOf=(gi,gj,s)=> T.byParity?((wN(gi)+wN(gj))%2):T.sites[s].color;
+    const id={},verts=[];
+    for(let gi=0;gi<N;gi++)for(let gj=0;gj<N;gj++)for(let s=0;s<T.sites.length;s++){
+      const k=`${wN(gi)},${wN(gj)},${s}`;
+      if(id[k]===undefined){id[k]=verts.length;
+        verts.push({color:colorOf(gi,gj,s),u:(wN(gi)+T.sites[s].x)/N,v:(wN(gj)+T.sites[s].y)/N});}
+    }
+    const fullEdges=[];const fullKey=new Map();
+    for(let gi=0;gi<N;gi++)for(let gj=0;gj<N;gj++)for(let bt=0;bt<T.bonds.length;bt++){
+      const bd=T.bonds[bt];
+      const ai=id[`${wN(gi)},${wN(gj)},${bd.a}`];
+      const bi=id[`${wN(gi+bd.du)},${wN(gj+bd.dv)},${bd.b}`];
+      if(ai===undefined||bi===undefined)continue;
+      const pa=verts[ai],pb=verts[bi];let du=pb.u-pa.u,dv=pb.v-pa.v;du-=Math.round(du);dv-=Math.round(dv);
+      const k=`${Math.min(ai,bi)}_${Math.max(ai,bi)}_${Math.abs(du).toFixed(4)}_${Math.abs(dv).toFixed(4)}`;
+      if(fullKey.has(k))continue;fullKey.set(k,fullEdges.length);
+      fullEdges.push({a:ai,b:bi,du,dv,btype:bt});
+    }
+    const simpleKey=new Map();const edges=[];
+    fullEdges.forEach(e=>{const k=Math.min(e.a,e.b)+'_'+Math.max(e.a,e.b);
+      if(!simpleKey.has(k)){simpleKey.set(k,edges.length);edges.push({a:e.a,b:e.b,du:e.du,dv:e.dv,btype:e.btype});}});
+    const adj=verts.map(()=>[]);
+    edges.forEach((e,ei)=>{adj[e.a].push({nb:e.b,ei});adj[e.b].push({nb:e.a,ei});});
+    const heMap=new Map();
+    for(const e of fullEdges){const kab=e.a+'|'+e.b,kba=e.b+'|'+e.a;
+      if(!heMap.has(kab))heMap.set(kab,{from:e.a,to:e.b,du:e.du,dv:e.dv});
+      if(!heMap.has(kba))heMap.set(kba,{from:e.b,to:e.a,du:-e.du,dv:-e.dv});}
+    const he=[...heMap.values()];const heIdx={};he.forEach((h,i)=>heIdx[h.from+'|'+h.to]=i);
+    const out={};he.forEach((h,i)=>{(out[h.from]=out[h.from]||[]).push({i,ang:Math.atan2(h.dv,h.du)});});
+    for(const k in out)out[k].sort((a,b)=>a.ang-b.ang);
+    const nextHE=new Int32Array(he.length).fill(-1);
+    he.forEach((h,i)=>{const tw=heIdx[h.to+'|'+h.from];if(tw===undefined)return;
+      const ob=out[h.to];if(!ob)return;const p=ob.findIndex(x=>x.i===tw);if(p<0)return;
+      nextHE[i]=ob[(p-1+ob.length)%ob.length].i;});
+    const faceOf=new Int32Array(he.length).fill(-1);const faces=[];
+    const seof=(x,y)=>simpleKey.get(Math.min(x,y)+'_'+Math.max(x,y));
+    for(let st=0;st<he.length;st++){
+      if(faceOf[st]>=0||nextHE[st]<0)continue;
+      const cyc=[];let cur=st,steps=0;
+      while(faceOf[cur]<0&&steps<he.length){faceOf[cur]=faces.length;cyc.push(cur);cur=nextHE[cur];steps++;if(cur<0)break;}
+      if(cyc.length<3)continue;
+      const vseq=cyc.map(hi=>he[hi].from);
+      const eids=[];let okFace=true;
+      for(let i=0;i<vseq.length;i++){const e=seof(vseq[i],vseq[(i+1)%vseq.length]);if(e===undefined){okFace=false;break;}eids.push(e);}
+      if(!okFace)continue;
+      const v0=verts[vseq[0]];let su=0,sv=0;
+      vseq.forEach(vi=>{let du=verts[vi].u-v0.u,dv=verts[vi].v-v0.v;du-=Math.round(du);dv-=Math.round(dv);su+=v0.u+du;sv+=v0.v+dv;});
+      faces.push({vseq,eids,flippable:(vseq.length%2===0),u:((su/vseq.length)%1+1)%1,v:((sv/vseq.length)%1+1)%1});
+    }
+    return {verts,edges,adj,n:verts.length,faces,T,N,simpleKey};
+  }
+
+  function initialMatching(M){
+    const n=M.n;const matchV=new Int32Array(n).fill(-1),matchE=new Int32Array(n).fill(-1);
+    const whites=[];M.verts.forEach((v,i)=>{if(v.color===0)whites.push(i);});
+    function tryK(u,seen){for(const {nb} of M.adj[u]){if(seen[nb])continue;seen[nb]=1;
+      if(matchV[nb]<0||tryK(matchV[nb],seen)){matchV[u]=nb;matchV[nb]=u;return true;}}return false;}
+    let cnt=0;for(const u of whites){const seen=new Uint8Array(n);if(tryK(u,seen))cnt++;}
+    for(let v=0;v<n;v++)if(matchV[v]>v){const f=M.adj[v].find(x=>x.nb===matchV[v]);if(f){matchE[v]=f.ei;matchE[matchV[v]]=f.ei;}}
+    return {matchV,matchE,perfect:(cnt*2===n)};
+  }
+  function weightOf(M,ei){ return weights[M.edges[ei].btype]; }
+
+  function faceFlip(M,st,rng){
+    const F=M.faces;if(!F.length)return false;
+    const f=F[(rng()*F.length)|0];if(!f.flippable)return false;
+    const eids=f.eids,L=eids.length;let aAll=true,bAll=true;
+    for(let i=0;i<L;i++){const e=M.edges[eids[i]];const matched=(st.matchE[e.a]===eids[i]);
+      if(i%2===0){if(!matched)aAll=false;}else{if(!matched)bAll=false;}}
+    let curSet;if(aAll&&!bAll)curSet=0;else if(bAll&&!aAll)curSet=1;else return false;
+    const cur=[],oth=[];
+    for(let i=0;i<L;i++){if(i%2===curSet)cur.push(eids[i]);else oth.push(eids[i]);}
+    let num=1,den=1;oth.forEach(e=>num*=weightOf(M,e));cur.forEach(e=>den*=weightOf(M,e));
+    if(rng()<Math.min(1,num/den)){
+      cur.forEach(ei=>{const e=M.edges[ei];st.matchV[e.a]=-1;st.matchV[e.b]=-1;st.matchE[e.a]=-1;st.matchE[e.b]=-1;});
+      oth.forEach(ei=>{const e=M.edges[ei];st.matchV[e.a]=e.b;st.matchV[e.b]=e.a;st.matchE[e.a]=ei;st.matchE[e.b]=ei;});
+      return true;
+    }
+    return false;
+  }
+
+  function computeFaceHeights(M,st){
+    const F=M.faces;
+    const faceOfEdge={};
+    F.forEach((f,fi)=>{f.eids.forEach(ei=>{(faceOfEdge[ei]=faceOfEdge[ei]||[]).push(fi);});});
+    function centroidLocal(f){
+      const v0=M.verts[f.vseq[0]];let su=0,sv=0;
+      f.vseq.forEach(vi=>{let du=M.verts[vi].u-v0.u,dv=M.verts[vi].v-v0.v;du-=Math.round(du);dv-=Math.round(dv);su+=v0.u+du;sv+=v0.v+dv;});
+      return {u:su/f.vseq.length,v:sv/f.vseq.length};
+    }
+    function edgeDelta(ei,fA,fB){
+      const e=M.edges[ei];const isDimer=st.matchE[e.a]===ei;
+      const deg=M.adj[e.a].length;
+      const base=isDimer?-(deg-1):1;
+      const cA=centroidLocal(F[fA]),cB=centroidLocal(F[fB]);
+      let abu=cB.u-cA.u,abv=cB.v-cA.v;abu-=Math.round(abu);abv-=Math.round(abv);
+      let wu=e.du,wv=e.dv;if(M.verts[e.a].color!==0){wu=-e.du;wv=-e.dv;}
+      const cross=wu*abv-wv*abu;return (cross>0?1:-1)*base;
+    }
+    const h=new Array(F.length).fill(null);
+    const U=new Array(F.length).fill(null),V=new Array(F.length).fill(null);
+    const c0=centroidLocal(F[0]);h[0]=0;U[0]=c0.u;V[0]=c0.v;const queue=[0];
+    while(queue.length){const fA=queue.shift();const cA=centroidLocal(F[fA]);
+      for(const ei of F[fA].eids){const fs=faceOfEdge[ei];if(!fs||fs.length<2)continue;
+        const fB=fs[0]===fA?fs[1]:fs[0];if(h[fB]!==null)continue;
+        const d=edgeDelta(ei,fA,fB);const cB=centroidLocal(F[fB]);
+        let abu=cB.u-cA.u,abv=cB.v-cA.v;abu-=Math.round(abu);abv-=Math.round(abv);
+        h[fB]=h[fA]+d;U[fB]=U[fA]+abu;V[fB]=V[fA]+abv;queue.push(fB);}
+    }
+    let SUU=0,SUV=0,SVV=0,SU=0,SV=0,S1=0,ShU=0,ShV=0,Sh=0;
+    for(let i=0;i<F.length;i++){const u=U[i],v=V[i],hh=h[i];
+      SUU+=u*u;SUV+=u*v;SVV+=v*v;SU+=u;SV+=v;S1+=1;ShU+=hh*u;ShV+=hh*v;Sh+=hh;}
+    function solve3(A,r){const a=A.map((row,i)=>row.concat(r[i]));
+      for(let i=0;i<3;i++){let p=i;for(let k=i+1;k<3;k++)if(Math.abs(a[k][i])>Math.abs(a[p][i]))p=k;
+        [a[i],a[p]]=[a[p],a[i]];const piv=a[i][i]||1e-9;for(let j=i;j<4;j++)a[i][j]/=piv;
+        for(let k=0;k<3;k++)if(k!==i){const f=a[k][i];for(let j=i;j<4;j++)a[k][j]-=f*a[i][j];}}
+      return [a[0][3],a[1][3],a[2][3]];}
+    const [a,b,c]=solve3([[SUU,SUV,SU],[SUV,SVV,SV],[SU,SV,S1]],[ShU,ShV,Sh]);
+    const hc=new Array(F.length);
+    for(let i=0;i<F.length;i++) hc[i]=h[i]-(a*U[i]+b*V[i]+c);
+    let hmin=Infinity,hmax=-Infinity;for(const x of hc){if(x<hmin)hmin=x;if(x>hmax)hmax=x;}
+    return {hc,a,b,hmin,hmax,faceCentroid:F.map(f=>({u:f.u,v:f.v}))};
+  }
+
+  function rasterizeHeights(M,fh,GU,GV){
+    const grid=new Float64Array(GU*GV).fill(0);
+    const cnt=new Float64Array(GU*GV).fill(0);
+    fh.faceCentroid.forEach((c,fi)=>{
+      const gi=Math.floor(c.u*GU), gj=Math.floor(c.v*GV);
+      for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){
+        const ii=((gi+di)%GU+GU)%GU, jj=((gj+dj)%GV+GV)%GV;
+        const w=1/(1+di*di+dj*dj);
+        grid[ii*GV+jj]+=fh.hc[fi]*w; cnt[ii*GV+jj]+=w;
+      }
+    });
+    for(let i=0;i<GU*GV;i++) grid[i]= cnt[i]>0? grid[i]/cnt[i] : 0;
+    for(let pass=0;pass<3;pass++){
+      const ng=new Float64Array(GU*GV);
+      for(let i=0;i<GU;i++)for(let j=0;j<GV;j++){
+        const ip=(i+1)%GU,im=(i-1+GU)%GU,jp=(j+1)%GV,jm=(j-1+GV)%GV;
+        ng[i*GV+j]=(grid[i*GV+j]*2+grid[ip*GV+j]+grid[im*GV+j]+grid[i*GV+jp]+grid[i*GV+jm])/6;
+      }
+      grid.set(ng);
+    }
+    return {grid,GU,GV};
+  }
+  function sampleGrid(R,u,v){
+    const {grid,GU,GV}=R;
+    let gu=((u%1)+1)%1*GU, gv=((v%1)+1)%1*GV;
+    let i=Math.floor(gu),j=Math.floor(gv);let fu=gu-i,fv=gv-j;
+    const ip=(i+1)%GU,jp=(j+1)%GV; i=((i%GU)+GU)%GU; j=((j%GV)+GV)%GV;
+    const h00=grid[i*GV+j],h10=grid[ip*GV+j],h01=grid[i*GV+jp],h11=grid[ip*GV+jp];
+    return h00*(1-fu)*(1-fv)+h10*fu*(1-fv)+h01*(1-fu)*fv+h11*fu*fv;
+  }
+
+  function probColorHeight(t){
+    const stops=[[0.0,0x2b5fa5],[0.3,0x4db8ff],[0.5,0xf1efe8],[0.7,0xe0a82e],[1.0,0xff5a4d]];
+    let lo=stops[0],hi=stops[stops.length-1];
+    for(let i=0;i<stops.length-1;i++){if(t>=stops[i][0]&&t<=stops[i+1][0]){lo=stops[i];hi=stops[i+1];break;}}
+    const f=(t-lo[0])/((hi[0]-lo[0])||1);
+    return new THREE.Color(lo[1]).lerp(new THREE.Color(hi[1]),Math.max(0,Math.min(1,f)));
+  }
+
+  const mc={M:null,st:null,rng:null,sweeps:0,acc:0,prop:0,nFaces:0};
+  function mkRng(seed){let s=seed>>>0||1;return ()=>{s=(s*1103515245+12345)&0x7fffffff;return s/0x7fffffff;};}
+  function mcReset(){ if(!mc.M)return;
+    mc.st=initialMatching(mc.M);mc.rng=mkRng((Date.now()&0x7fffffff)||12345);
+    mc.sweeps=0;mc.acc=0;mc.prop=0;mc.nFaces=mc.M.faces.filter(f=>f.flippable).length; }
+  function mcSweep(){ if(!mc.M||!mc.st||!mc.st.perfect)return;
+    const flips=Math.max(1,mc.nFaces);
+    for(let i=0;i<flips;i++){mc.prop++;if(faceFlip(mc.M,mc.st,mc.rng))mc.acc++;}
+    mc.sweeps++; }
+
+  function disposeGroup(){
+    while(group.children.length){const o=group.children[0];
+      if(o.geometry)o.geometry.dispose();
+      if(o.material){if(Array.isArray(o.material))o.material.forEach(m=>m.dispose());else o.material.dispose();}
+      group.remove(o);}
+    surfMesh=null;dimerMesh=null;
+  }
+
+  function buildScene(){
+    loading.classList.remove('hidden');
+    setTimeout(()=>{
+      disposeGroup();
+      const R=torusR, r=torusR*0.38;
+      const T=tile(latIndex);
+      let N=rep;
+      if(T.byParity && (N%2)) N=N+1;
+      const M=buildModel(T,N);
+      weights=T.bonds.map(()=>1);
+      mc.M=M; mcReset();
+      currentBuild={M,R,r,N,T};
+      buildSurface();
+      animateOnce();
+      loading.classList.add('hidden');
+    },20);
+  }
+
+  function buildSurface(){
+    if(!currentBuild)return;
+    const {M,R,r,N}=currentBuild;
+    const fh=computeFaceHeights(M,mc.st);
+    const GU=Math.max(48,N*8), GV=Math.max(48,N*8);
+    const ras=rasterizeHeights(M,fh,GU,GV);
+    const hmin=fh.hmin,hmax=fh.hmax,hrange=(hmax-hmin)||1,hmid=(hmin+hmax)/2;
+    const liftOf=h=> amp*r*((h-hmid)/hrange);
+
+    const SU=Math.max(60,N*8), SV=Math.max(60,N*8);
+    const positions=[],colors=[],indices=[];
+    for(let i=0;i<=SU;i++)for(let j=0;j<=SV;j++){
+      const u=i/SU, v=j/SV;
+      const h=sampleGrid(ras,u,v);
+      const t=(h-hmin)/hrange;
+      const base=torusPos(u,v,R,r);const nrm=torusNormal(u,v);
+      const p=base.clone().add(nrm.clone().multiplyScalar(liftOf(h)));
+      positions.push(p.x,p.y,p.z);
+      const c=probColorHeight(t);colors.push(c.r,c.g,c.b);
+    }
+    const row=SV+1;
+    for(let i=0;i<SU;i++)for(let j=0;j<SV;j++){
+      const a=i*row+j,b=(i+1)*row+j,c=(i+1)*row+(j+1),d=i*row+(j+1);
+      indices.push(a,b,d,b,c,d);
+    }
+    const g=new THREE.BufferGeometry();
+    g.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+    g.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    g.setIndex(indices);g.computeVertexNormals();
+    const mat=new THREE.MeshPhongMaterial({vertexColors:true,side:THREE.DoubleSide,shininess:18,transparent:true,opacity:0.97});
+    surfMesh=new THREE.Mesh(g,mat);group.add(surfMesh);
+
+    if(showDimers){
+      const dp=[];const SEGD=8;
+      for(let v=0;v<M.n;v++){const ei=mc.st.matchE[v];if(ei<0)continue;
+        const e=M.edges[ei];if(e.a!==v)continue;
+        const ua=M.verts[e.a].u,va=M.verts[e.a].v;
+        for(let s=0;s<SEGD;s++){
+          const f0=s/SEGD,f1=(s+1)/SEGD;
+          const u0=ua+e.du*f0,w0=va+e.dv*f0,u1=ua+e.du*f1,w1=va+e.dv*f1;
+          const p0=liftedPos(u0,w0,ras,liftOf,R,r),p1=liftedPos(u1,w1,ras,liftOf,R,r);
+          dp.push(p0.x,p0.y,p0.z,p1.x,p1.y,p1.z);
+        }
+      }
+      const dg=new THREE.BufferGeometry();
+      dg.setAttribute('position',new THREE.Float32BufferAttribute(dp,3));
+      dimerMesh=new THREE.LineSegments(dg,new THREE.LineBasicMaterial({color:0x111111,transparent:true,opacity:0.8}));
+      group.add(dimerMesh);
+    }
+
+    document.getElementById('hx').textContent=fh.a.toFixed(3);
+    document.getElementById('hy').textContent=fh.b.toFixed(3);
+    document.getElementById('seam').textContent='なめらかに閉じる';
+  }
+  function liftedPos(u,w,ras,liftOf,R,r){
+    const h=sampleGrid(ras,u,w);
+    const base=torusPos(u,w,R,r*1.01);const nrm=torusNormal(u,w);
+    return base.clone().add(nrm.clone().multiplyScalar(liftOf(h)+r*0.02));
+  }
+
+  document.querySelectorAll('#lat-seg button').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      document.querySelectorAll('#lat-seg button').forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');latIndex=+this.dataset.lat;buildScene();
+    });
+  });
+  document.getElementById('rep').addEventListener('input',function(){
+    rep=+this.value;document.getElementById('rep-val').textContent=rep+'×'+rep;buildScene();
+  });
+  document.getElementById('amp').addEventListener('input',function(){
+    amp=+this.value/100;document.getElementById('amp-val').textContent=amp.toFixed(2);buildSurface();
+  });
+  document.getElementById('auto-rot').addEventListener('input',function(){autoSpeed=+this.value;});
+  document.getElementById('mc-speed').addEventListener('input',function(){mcSpeed=+this.value;});
+  const dimerBtn=document.getElementById('dimer-toggle');
+  dimerBtn.addEventListener('click',function(){showDimers=!showDimers;
+    this.textContent=showDimers?'ON':'OFF';this.classList.toggle('active',showDimers);buildSurface();});
+  document.getElementById('btn-run').addEventListener('click',function(){
+    mcRunning=!mcRunning;this.classList.toggle('active',mcRunning);this.textContent=mcRunning?'⏸ PAUSE':'▶ RUN';
+  });
+  document.getElementById('btn-step').addEventListener('click',()=>{for(let i=0;i<5;i++)mcSweep();buildSurface();});
+  document.getElementById('btn-reset').addEventListener('click',()=>{mcReset();buildSurface();});
+
+  window.addEventListener('resize',()=>{
+    const W=wrap.clientWidth,H=wrap.clientHeight;
+    renderer.setSize(W,H);camera.aspect=W/H;camera.updateProjectionMatrix();
+  });
+
+  let autoRotY=0,frame=0,rebuildTimer=0;
+  function animateOnce(){
+    group.rotation.x=rotX;group.rotation.y=rotY+autoRotY;
+    group.position.set(panX,panY,0);
+    camera.position.z=zoom;camera.updateProjectionMatrix();
+    renderer.render(scene,camera);
+  }
+  function animate(){
+    requestAnimationFrame(animate);
+    if(mcRunning&&mc.M&&mc.st&&mc.st.perfect){
+      const sw=Math.max(1,Math.round(mcSpeed/10));
+      for(let i=0;i<sw;i++)mcSweep();
+      rebuildTimer++;
+      const interval=Math.max(8,Math.min(36,Math.round((currentBuild?currentBuild.N:6)*3)));
+      if(rebuildTimer>=interval){rebuildTimer=0;buildSurface();}
+    }
+    frame++;
+    if(frame%15===0){
+      document.getElementById('st-sweeps').textContent=mc.sweeps;
+      document.getElementById('st-accept').textContent=mc.prop?(mc.acc/mc.prop*100).toFixed(1)+'%':'—';
+    }
+    if(!isDrag)autoRotY+=autoSpeed*0.0003;
+    animateOnce();
+  }
+
+  buildScene();
+  animate();
+})();
+</script>
+</body>
+</html>
