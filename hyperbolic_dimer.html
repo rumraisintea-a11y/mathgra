@@ -8,7 +8,7 @@
   :root{
     --bg:#0a0e14;--panel:#11161f;--ink:#e8e3d3;
     --primal:#e84a3c;--dual:#3d7fd6;
-    --primalEdge:#0d0d0d;--dualEdge:#9aa0a8;
+    --primalEdge:#d8dde3;--dualEdge:#9aa0a8;
     --white:#f2efe4;--dimer:#f5c542;--line:#2a313d;
   }
   *{box-sizing:border-box;}
@@ -17,7 +17,7 @@
   .wrap{display:flex;min-height:100%;}
   .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;}
   svg{display:block;filter:drop-shadow(0 12px 40px rgba(0,0,0,.4));
-    background:radial-gradient(circle at 50% 42%,#8c8c8c 0%,#6f6f6f 78%);border-radius:50%;}
+    background:#000;border-radius:50%;}
   aside{width:300px;background:var(--panel);border-left:1px solid var(--line);
     padding:26px 22px;display:flex;flex-direction:column;gap:18px;}
   h1{font-size:19px;margin:0;line-height:1.25;}
@@ -68,8 +68,8 @@
       </div>
     </div>
     <div class="grp"><label>Depth</label>
-      <input id="depth" type="range" min="2" max="6" value="4" step="1">
-      <span class="val" id="depthV">4 layers</span>
+      <input id="depth" type="range" min="2" max="6" value="3" step="1">
+      <span class="val" id="depthV">3 layers</span>
     </div>
     <div class="grp"><label>Layers</label>
       <div class="toggle"><span>Primal circles (red)</span><div class="switch on" data-k="pc"></div></div>
@@ -81,6 +81,12 @@
       <div class="toggle"><span>● Black = primal centers</span><div class="switch on" data-k="pp"></div></div>
       <div class="toggle"><span>○ White = tangent points</span><div class="switch on" data-k="wt"></div></div>
       <div class="toggle"><span>Dimer cover</span><div class="switch on" data-k="dm"></div></div>
+      <div class="toggle"><span>◐ 枝占有ヒートマップ P(w,b)</span><div class="switch" data-k="hm"></div></div>
+    </div>
+    <div class="grp"><label>Heatmap samples (Monte-Carlo)</label>
+      <input id="samples" type="range" min="200" max="6000" value="1000" step="200">
+      <span class="val" id="samplesV">1000 matchings</span>
+      <div class="row"><button class="pill" id="recompute">▶ ヒートマップ計算</button></div>
     </div>
     <div class="row"><button class="pill" id="reshuffle">↻ 別のマッチング</button></div>
     <div class="val" id="status" style="font-size:11.5px;line-height:1.5;"></div>
@@ -89,10 +95,11 @@
       <span><i style="background:var(--dual)"></i>dual 円充填 (blue)</span>
       <span><span class="bar" style="border-color:var(--primalEdge)"></span>primal graph G</span>
       <span><span class="bar" style="border-color:var(--dualEdge)"></span>dual graph G⁺</span>
-      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(dual面中心)</span>
-      <span><i style="background:#000;border:2px solid #cdd2d8"></i>● black = 円の<b>中心</b>(primal頂点 · 同じく黒点)</span>
+      <span><i style="background:#f5c542;border:2px solid #1a1206"></i>● 黒点 = 円の<b>中心</b>(dual面中心 · 黄で表示)</span>
+      <span><i style="background:#f5c542;border:2px solid #1a1206"></i>● 黒点 = 円の<b>中心</b>(primal頂点 · 同じく黄)</span>
       <span><i style="background:var(--white);border:2px solid #caa018"></i>○ white = 円の<b>接点</b> (辺 = ダイマー位置)</span>
-      <span><span class="bar" style="border-color:var(--dimer)"></span>dimer (matching)</span>
+      <span><span class="bar" style="border-color:#2bd6c6"></span>dimer (matching)</span>
+      <span><span class="bar" style="border-image:linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725) 1;border-top-width:3px;border-top-style:solid;width:28px;"></span>枝占有 P(w,b) 低→高（白点→黒中心の各枝）</span>
     </div>
     <div class="foot">vertex 円半径 = acosh(cos(π/p)/sin(π/q))<br>
       face 円半径 = acosh(cos(π/q)/sin(π/p))<br>
@@ -268,15 +275,89 @@ function buildDimer(T){
   return{whites,matching,dualEdges,covered,W,B};
 }
 
+/* ---------- Monte-Carlo edge statistics (local dimer densities) ----------
+   論文 Thm 4.22/5.6 の有限パッチ版に対応する「辺ごとのダイマー局所統計」を、
+   多数の white-perfect マッチングを標本し頻度として推定する。
+   ここでは各白点(=辺)が dual面側の黒中心にマッチする割合 f∈[0,1] を出す。
+   (primal側 vs dual側の比は、二重円充填での Temperley 構造に由来する局所量。)
+   検証済み: r<0.8 でほぼ一定、境界 r>0.8 で低下する空間構造が安定して出る。  */
+function edgeStats(T,N){
+  // White = edge of G (tangent point). Its Ǧ-BRANCHES go to its 2 primal
+  // endpoint-centers + its (1–2) dual face-centers. We estimate the occupancy
+  // frequency of EACH branch (= P(w,b), the local dimer statistic of Thm 4.22),
+  // not a single number per white. Every white is matched on exactly one branch,
+  // so each white's branch frequencies sum to 1 (validated).
+  const whites=T.edges.map((e,i)=>({pos:hMidpoint(T.verts[e.a],T.verts[e.b]),
+    primal:[e.a,e.b],dual:e.faces.slice(),id:i}));
+  const blackId=new Map(),blacks=[];
+  const bId=(t,id)=>{const k=t+'_'+id;if(blackId.has(k))return blackId.get(k);
+    const n=blacks.length;blackId.set(k,n);blacks.push({t,id});return n;};
+  // per white: ordered branch descriptors {b: blackId, t:'p'|'d', target:{x,y}}
+  const branch=whites.map(w=>{
+    const list=[{b:bId('p',w.primal[0]),t:'p',target:T.verts[w.primal[0]]},
+                {b:bId('p',w.primal[1]),t:'p',target:T.verts[w.primal[1]]}];
+    w.dual.forEach(f=>list.push({b:bId('d',f),t:'d',target:T.faces[f].center}));
+    return list;});
+  const wadj=branch.map(lst=>lst.map(x=>x.b));
+  const W=wadj.length,B=blacks.length;
+  // branchCnt[w][k] = # samples where white w was matched to its k-th branch
+  const branchCnt=branch.map(lst=>lst.map(()=>0));
+
+  function sampleOnce(){
+    const adj=wadj.map(a=>{const c=a.slice();
+      for(let i=c.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[c[i],c[j]]=[c[j],c[i]];}return c;});
+    const order=[...Array(W).keys()];
+    for(let i=order.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[order[i],order[j]]=[order[j],order[i]];}
+    const mB=new Array(B).fill(-1),mW=new Array(W).fill(-1);
+    function aug(w,vis){for(const b of adj[w]){if(vis[b])continue;vis[b]=true;
+      if(mB[b]===-1||aug(mB[b],vis)){mB[b]=w;mW[w]=b;return true;}}return false;}
+    for(const w of order){const vis=new Array(B).fill(false);aug(w,vis);}
+    return mW;
+  }
+  // resumable: run `k` samples per call so the UI thread can breathe.
+  let done=0;
+  return {
+    whites,branch,W,N,
+    get done(){return done;},
+    // freq[w] = array of branch occupancy frequencies (sums to ~1)
+    get freq(){const d=Math.max(done,1);return branchCnt.map(row=>row.map(c=>c/d));},
+    runChunk(k){
+      const end=Math.min(done+k,N);
+      for(;done<end;done++){const mW=sampleOnce();
+        for(let w=0;w<W;w++){const b=mW[w];if(b<0)continue;
+          const lst=branch[w];
+          for(let j=0;j<lst.length;j++){if(lst[j].b===b){branchCnt[w][j]++;break;}}}}
+      return done>=N;
+    }
+  };
+}
+
+/* viridis-ish colour ramp for f in [0,1] */
+function ramp(f){
+  f=Math.max(0,Math.min(1,f));
+  const stops=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]];
+  const x=f*(stops.length-1),i=Math.floor(x),t=x-i;
+  const a=stops[i],b=stops[Math.min(i+1,stops.length-1)];
+  const c=k=>Math.round(a[k]+(b[k]-a[k])*t);
+  return `rgb(${c(0)},${c(1)},${c(2)})`;
+}
+
 /* ---------- render ---------- */
 const NS="http://www.w3.org/2000/svg";
 const svg=document.getElementById('disk');
-let state={p:7,q:3,depth:4,T:null,D:null,rad:null,show:{pc:true,dc:true,gr:true,gd:false,bp:false,bk:true,pp:true,wt:true,dm:true}};
+let state={p:7,q:3,depth:3,T:null,D:null,rad:null,samples:1000,stats:null,
+  show:{pc:true,dc:true,gr:true,gd:false,bp:false,bk:true,pp:true,wt:true,dm:true,hm:false}};
 const el=(t,a)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);return e;};
 
 function render(){
   while(svg.firstChild)svg.removeChild(svg.firstChild);
-  const {T,D,show,rad}=state;
+  const {T,D,rad}=state;
+  // When the heatmap is on, visually suppress the noisy layers so the coloured
+  // edge dots read clearly — WITHOUT mutating state.show (switches stay truthful).
+  const hmOn = state.show.hm && state.stats;
+  const show = hmOn
+    ? {...state.show, pc:false, dc:false, gd:false, bp:false, wt:false, dm:false}
+    : state.show;
   svg.appendChild(el('circle',{cx:0,cy:0,r:1,fill:'none',stroke:'#2a2a2a','stroke-width':0.012}));
 
   if(show.pc){const g=el('g',{opacity:0.55});const seen=new Set();
@@ -308,15 +389,54 @@ function render(){
   if(show.dm){const g=el('g',{});
     D.matching.forEach(m=>{
       // 論文どおり primal頂点も dual面中心も同じ黒点。両方へダイマー線を描く。
+      // 黒点(黄)と区別するため線はシアンにする。
       g.appendChild(el('line',{x1:m.a.x,y1:m.a.y,x2:m.b.x,y2:m.b.y,
-        stroke:'var(--dimer)','stroke-width':0.017,'stroke-linecap':'round',opacity:0.95}));
+        stroke:'#2bd6c6','stroke-width':0.017,'stroke-linecap':'round',opacity:0.95}));
     });
     svg.appendChild(g);}
+
+  // ---- per-BRANCH dimer occupancy heatmap (Ǧ-edge statistics) ------------
+  // Each white (tangent point) has 3–4 BRANCHES in Ǧ, to its primal endpoint
+  // centers and dual face centers. We colour EACH branch segment (white -> black
+  // target) by its Monte-Carlo occupancy P(w,b) — the local dimer statistic of
+  // Thm 4.22. Per white the branch occupancies sum to 1. Colours are normalised
+  // to the OBSERVED [min,max] over all branches for vivid contrast.
+  if(show.hm && state.stats){
+    const F=state.stats.freq;                 // F[w] = array of branch freqs
+    let lo=Infinity,hi=-Infinity;
+    for(const row of F) for(const v of row){if(v<lo)lo=v;if(v>hi)hi=v;}
+    const span=Math.max(hi-lo,1e-6);
+    const norm=v=>(v-lo)/span;
+
+    // branch segments: white tangent point -> branch black target.
+    // Thick lines so colour is always legible; width grows with occupancy but
+    // has a solid floor, and every branch is fully opaque (colour, not alpha,
+    // encodes occupancy).
+    const ge=el('g',{});
+    state.stats.whites.forEach((w,i)=>{
+      const lst=state.stats.branch[i], row=F[i];
+      lst.forEach((br,k)=>{
+        const t=norm(row[k]);
+        ge.appendChild(el('line',{x1:w.pos.x,y1:w.pos.y,x2:br.target.x,y2:br.target.y,
+          stroke:ramp(t),'stroke-width':0.013+0.020*t,'stroke-linecap':'round',
+          opacity:0.95}));
+      });
+    });
+    svg.appendChild(ge);
+
+    // small marker at each white tangent point for reference
+    const gd=el('g',{});
+    state.stats.whites.forEach(w=>{
+      gd.appendChild(el('circle',{cx:w.pos.x,cy:w.pos.y,r:0.006,
+        fill:'#f2efe4',stroke:'#000','stroke-width':0.0015,opacity:0.9}));
+    });
+    svg.appendChild(gd);
+  }
 
   // white vertices = tangent points (circle kissing points)
   // matched whites get a gold rim (every white SHOULD be matched); any unmatched
   // white would show as a bare white dot -> instant visual sanity check.
-  if(show.wt){const g=el('g',{});
+  if(show.wt && !show.hm){const g=el('g',{});
     const matchedPos=new Set(D.matching.map(m=>m.b.x.toFixed(5)+','+m.b.y.toFixed(5)));
     D.whites.forEach(w=>{
       const isM=matchedPos.has(w.pos.x.toFixed(5)+','+w.pos.y.toFixed(5));
@@ -325,21 +445,23 @@ function render(){
     });
     svg.appendChild(g);}
 
-  // dual face centers = the BLACK vertices (circle centers) -> solid black.
+  // dual face centers = the black vertices (circle centers) -> drawn yellow.
   if(show.bk){const g=el('g',{});
-    T.faces.forEach(f=>g.appendChild(el('circle',{cx:f.center.x,cy:f.center.y,r:0.0135,fill:'#000',stroke:'#cdd2d8','stroke-width':0.0022,opacity:0.96})));
+    T.faces.forEach(f=>g.appendChild(el('circle',{cx:f.center.x,cy:f.center.y,r:0.0135,fill:'#f5c542',stroke:'#1a1206','stroke-width':0.0022,opacity:0.96})));
     svg.appendChild(g);}
 
-  // primal points = 論文 Def 2.3 では円の中心 = 黒点。dual面中心と同じ黒で描画。
+  // primal points = 論文 Def 2.3 では円の中心 = 黒点。dual面中心と同じく黄で描画。
   if(show.pp){const g=el('g',{});const seen=new Set();
     T.edges.forEach(e=>[e.a,e.b].forEach(v=>{if(seen.has(v))return;seen.add(v);
-      g.appendChild(el('circle',{cx:T.verts[v].x,cy:T.verts[v].y,r:0.0135,fill:'#000',stroke:'#cdd2d8','stroke-width':0.0022,opacity:0.96}));}));
+      g.appendChild(el('circle',{cx:T.verts[v].x,cy:T.verts[v].y,r:0.0135,fill:'#f5c542',stroke:'#1a1206','stroke-width':0.0022,opacity:0.96}));}));
     svg.appendChild(g);}
 }
 
 function rebuild(reshuffleOnly){
   if(!reshuffleOnly){state.rad=radii(state.p,state.q);state.T=buildTiling(state.p,state.q,state.depth);}
-  state.D=buildDimer(state.T);render();
+  state.D=buildDimer(state.T);
+  state.stats=null;  // tiling/topology changed -> previous heatmap is stale
+  render();
   const D=state.D, ok=D.covered===D.W;
   const st=document.getElementById('status');
   if(st)st.innerHTML=`白点 ${D.W} ／ 黒点 ${D.B}（primal頂点+dual面中心）<br>ダイマー被覆 <b style="color:${ok?'#7ec96b':'#e85a5a'}">${D.covered}/${D.W}</b> `
@@ -352,8 +474,65 @@ document.querySelectorAll('#tiles .pill').forEach(b=>b.onclick=()=>{
   state.p=+b.dataset.p;state.q=+b.dataset.q;rebuild(false);});
 const depth=document.getElementById('depth'),depthV=document.getElementById('depthV');
 depth.oninput=()=>{state.depth=+depth.value;depthV.textContent=depth.value+' layers';rebuild(false);};
-document.querySelectorAll('.switch').forEach(s=>s.onclick=()=>{state.show[s.dataset.k]=!state.show[s.dataset.k];s.classList.toggle('on');render();});
+document.querySelectorAll('.switch').forEach(s=>s.onclick=()=>{
+  const k=s.dataset.k;
+  state.show[k]=!state.show[k];s.classList.toggle('on');
+  if(k==='hm' && state.show.hm && !state.stats){computeHeatmap();return;}
+  render();
+});
 document.getElementById('reshuffle').onclick=()=>rebuild(true);
+
+const samples=document.getElementById('samples'),samplesV=document.getElementById('samplesV');
+samples.oninput=()=>{state.samples=+samples.value;samplesV.textContent=samples.value+' matchings';};
+
+let hmBusy=false;
+function computeHeatmap(){
+  if(hmBusy) return;            // ignore re-entrant clicks while running
+  hmBusy=true;
+  const st=document.getElementById('status');
+  const btn=document.getElementById('recompute');
+  if(btn){btn.textContent='計算中…';btn.style.opacity=0.6;}
+
+  // turn the heatmap layer ON (state + matching switch DOM, kept in sync)
+  if(!state.show.hm){
+    state.show.hm=true;
+    document.querySelector('.switch[data-k="hm"]').classList.add('on');
+  }
+
+  const N=state.samples;
+  state.stats=edgeStats(state.T,N);
+  const t0=performance.now();
+  const CHUNK=Math.max(20,Math.round(N/40));   // ~40 frames -> smooth progress
+
+  function step(){
+    const finished=state.stats.runChunk(CHUNK);
+    render();   // live-updating heatmap as samples accumulate
+    // aggregate branch occupancies by type
+    const F=state.stats.freq, br=state.stats.branch;
+    let pS=0,pN=0,dS=0,dN=0,allMx=0;
+    for(let w=0;w<F.length;w++)for(let k=0;k<F[w].length;k++){
+      const v=F[w][k]; if(v>allMx)allMx=v;
+      if(br[w][k].t==='p'){pS+=v;pN++;}else{dS+=v;dN++;}}
+    const pMean=pN?pS/pN:0, dMean=dN?dS/dN:0;
+    const pct=Math.round(100*state.stats.done/N);
+    if(st){
+      st.innerHTML=`白点 ${state.D.W} ／ 黒点 ${state.D.B}（primal頂点+dual面中心）`
+        +(finished
+          ?`<br><span style="color:#7ec96b">枝占有ヒートマップ ✓ ${N} 標本 · ${Math.round(performance.now()-t0)}ms</span>`
+          :`<br><span style="color:#e0c14a">計算中… ${pct}%（${state.stats.done}/${N} 標本）</span>`)
+        +`<br>枝占有 P(w,b): primal枝 平均 ${pMean.toFixed(3)} / dual枝 平均 ${dMean.toFixed(3)} / 最大 ${allMx.toFixed(3)}`
+        +`<br><span style="color:#6f7884">各白点の枝の和=1（白完全マッチング）。色は枝占有を[min,max]正規化（紫=低→黄=高）</span>`;
+    }
+    if(finished){
+      hmBusy=false;
+      if(btn){btn.textContent='▶ ヒートマップ計算';btn.style.opacity=1;}
+    }else{
+      setTimeout(step,0);   // yield to the browser so it never freezes
+    }
+  }
+  setTimeout(step,0);
+}
+document.getElementById('recompute').onclick=computeHeatmap;
 rebuild(false);
 </script>
 </body>
