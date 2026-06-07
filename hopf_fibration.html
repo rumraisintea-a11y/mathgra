@@ -568,15 +568,36 @@ function makeOrbit(canvas, camera){
     e.preventDefault();
   },{passive:false});
 
-  let lt=null;
-  canvas.addEventListener('touchstart',e=>{lt=e.touches[0];},{passive:true});
+  let lt=null, lt2=null, pinchDist0=null;
+  canvas.addEventListener('touchstart',e=>{
+    if(e.touches.length===1){ lt=e.touches[0]; lt2=null; pinchDist0=null; }
+    else if(e.touches.length===2){
+      lt=null;
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      pinchDist0=Math.sqrt(dx*dx+dy*dy);
+    }
+  },{passive:true});
   canvas.addEventListener('touchmove',e=>{
-    if(!lt)return;
-    state.rotY+=(e.touches[0].clientX-lt.clientX)*0.012;
-    state.rotX+=(e.touches[0].clientY-lt.clientY)*0.012;
-    lt=e.touches[0];
     e.preventDefault();
+    if(e.touches.length===1 && lt){
+      state.rotY+=(e.touches[0].clientX-lt.clientX)*0.012;
+      state.rotX+=(e.touches[0].clientY-lt.clientY)*0.012;
+      state.rotX=Math.max(-1.4,Math.min(1.4,state.rotX));
+      lt=e.touches[0];
+    } else if(e.touches.length===2 && pinchDist0!==null){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const d=Math.sqrt(dx*dx+dy*dy);
+      state.dist*=pinchDist0/d;
+      state.dist=Math.max(2,Math.min(15,state.dist));
+      pinchDist0=d;
+    }
   },{passive:false});
+  canvas.addEventListener('touchend',e=>{
+    if(e.touches.length===0){lt=null;pinchDist0=null;}
+    else if(e.touches.length===1){lt=e.touches[0];pinchDist0=null;}
+  },{passive:true});
 
   return state;
 }
@@ -622,7 +643,8 @@ slider('slTheta','vTheta','theta',v=>v+'°',rebuildAll);
 slider('slPhi','vPhi','phi',v=>v+'°',rebuildAll);
 slider('slLatLines','vLatLines','latLines',v=>v,rebuildAll);
 slider('slNF','vNF','nFibers',v=>v,rebuildAll);
-slider('slOpacity','vOpacity','opacity',v=>v+'%',v=>{P.opacity=v/100;buildR3();});
+// opacity handled separately
+document.getElementById('slOpacity').addEventListener('input',function(){ P.opacity=parseFloat(this.value)/100; document.getElementById('vOpacity').textContent=this.value+'%'; buildR3(); });
 
 function toggle(id, key, rebuild){
   const el=document.getElementById(id);
