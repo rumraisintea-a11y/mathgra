@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hopf Fibration</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;1,300&family=DM+Sans:wght@200;300&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #06060e;
+    --panel: #0d0d1a;
+    --border: rgba(120,120,255,0.12);
+    --accent: #7b7bff;
+    --accent2: #ff7bcc;
+    --text: #c8c8e8;
+    --muted: #5a5a88;
+    --mono: 'DM Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--sans); overflow: hidden; }
+  #app { display: flex; height: 100vh; gap: 0; }
+
+  /* Side panel */
+  #panel {
+    width: 260px; min-width: 260px;
+    background: var(--panel);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    padding: 24px 20px;
+    gap: 0;
+    overflow-y: auto;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  h1 {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 300;
+    color: #e0e0ff;
+    line-height: 1.3;
+    margin-bottom: 4px;
+  }
+  .subtitle {
+    font-size: 11px;
+    color: var(--muted);
+    font-family: var(--mono);
+    margin-bottom: 28px;
+  }
+  .section-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    margin-top: 22px;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+  .section-label:first-of-type { margin-top: 0; border-top: none; padding-top: 0; }
+
+  /* Slider rows */
+  .ctrl-row { margin-bottom: 16px; }
+  .ctrl-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .ctrl-name { font-family: var(--mono); font-size: 11px; color: var(--text); }
+  .ctrl-val { font-family: var(--mono); font-size: 12px; color: var(--accent); min-width: 40px; text-align: right; }
+  input[type=range] {
+    width: 100%;
+    height: 2px;
+    -webkit-appearance: none;
+    background: var(--border);
+    outline: none;
+    border-radius: 1px;
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-runnable-track {
+    height: 2px;
+    border-radius: 1px;
+  }
+
+  /* Toggle buttons */
+  .toggle-group { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  .toggle-label { font-family: var(--mono); font-size: 11px; color: var(--text); }
+  .toggle {
+    width: 32px; height: 18px;
+    background: var(--border);
+    border-radius: 9px;
+    border: 1px solid rgba(120,120,255,0.2);
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+  }
+  .toggle.on { background: var(--accent); border-color: var(--accent); }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    background: #fff;
+    top: 2px; left: 2px;
+    transition: left 0.2s;
+  }
+  .toggle.on::after { left: 16px; }
+
+  /* Info box */
+  .info-box {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+  .info-box em { color: var(--accent2); font-style: normal; }
+
+  /* Main canvas area */
+  #main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: hidden;
+  }
+  #canvases {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+    gap: 1px;
+    background: var(--border);
+  }
+  .view-wrap {
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+  }
+  canvas { display: block; width: 100%; height: 100%; }
+  .view-label {
+    position: absolute;
+    top: 14px; left: 16px;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    color: var(--muted);
+    text-transform: uppercase;
+    pointer-events: none;
+  }
+  .view-label b { color: var(--accent); font-weight: 400; }
+  #hint {
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    padding: 10px;
+    border-top: 1px solid var(--border);
+    letter-spacing: 0.1em;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="panel">
+    <div class="logo">π : S³ → S²</div>
+    <h1>Hopf<br>Fibration</h1>
+    <div class="subtitle">Interactive visualization</div>
+
+    <div class="section-label">Base space S² (left)</div>
+    <div class="ctrl-row">
+      <div class="ctrl-header">
+        <span class="ctrl-name">緯度 θ</span>
+        <span class="ctrl-val" id="vTheta">30°</span>
+      </div>
+      <input type="range" id="slTheta" min="-85" max="85" value="30" step="1">
+    </div>
+    <div class="ctrl-row">
+      <div class="ctrl-header">
+        <span class="ctrl-name">経度 φ</span>
+        <span class="ctrl-val" id="vPhi">0°</span>
+      </div>
+      <input type="range" id="slPhi" min="0" max="359" value="0" step="1">
+    </div>
+    <div class="ctrl-row">
+      <div class="ctrl-header">
+        <span class="ctrl-name">緯線の本数</span>
+        <span class="ctrl-val" id="vLatLines">7</span>
+      </div>
+      <input type="range" id="slLatLines" min="3" max="15" value="7" step="1">
+    </div>
+
+    <div class="section-label">Fiber (right)</div>
+    <div class="ctrl-row">
+      <div class="ctrl-header">
+        <span class="ctrl-name">ファイバー数 / 緯線</span>
+        <span class="ctrl-val" id="vNF">20</span>
+      </div>
+      <input type="range" id="slNF" min="6" max="40" value="20" step="2">
+    </div>
+    <div class="ctrl-row">
+      <div class="ctrl-header">
+        <span class="ctrl-name">不透明度</span>
+        <span class="ctrl-val" id="vOpacity">70%</span>
+      </div>
+      <input type="range" id="slOpacity" min="10" max="100" value="70" step="5">
+    </div>
+
+    <div class="section-label">表示設定</div>
+    <div class="toggle-group">
+      <div class="toggle-row">
+        <span class="toggle-label">ハイライト緯線のみ</span>
+        <div class="toggle" id="togSingle"></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">経線を表示</span>
+        <div class="toggle on" id="togMeridians"></div>
+      </div>
+      <div class="toggle-row">
+        <span class="toggle-label">自動回転</span>
+        <div class="toggle on" id="togAutoRot"></div>
+      </div>
+    </div>
+
+    <div class="info-box">
+      S²上の<em>一本の緯線</em>に対応する<br>
+      全ファイバーが R³ で<em>トーラス</em>を形成。<br>
+      各ファイバーは互いに1回絡む。<br><br>
+      θ=±85° → トーラスが縮退<br>
+      θ=0° → 標準的なトーラス
+    </div>
+  </div>
+
+  <div id="main">
+    <div id="canvases">
+      <div class="view-wrap" id="wrapS2">
+        <canvas id="cvS2"></canvas>
+        <div class="view-label">Base space <b>S²</b></div>
+      </div>
+      <div class="view-wrap" id="wrapR3">
+        <canvas id="cvR3"></canvas>
+        <div class="view-label">Total space <b>R³</b> (stereo projection)</div>
+      </div>
+    </div>
+    <div id="hint">drag to rotate · scroll to zoom · left: S² base space · right: R³ fiber torus</div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+
+// ── params ──────────────────────────────────────────────
+const P = { theta:30, phi:0, latLines:7, nFibers:20, opacity:0.70, singleLat:false, meridians:true, autoRot:true };
+
+// ── helpers ─────────────────────────────────────────────
+function hsl(h,s,l){ // returns THREE.Color
+  const c = new THREE.Color();
+  c.setHSL(h,s,l);
+  return c;
+}
+// latitude index → color hue
+function latHue(idx, total){ return idx/total; }
+
+// Hopf fiber: colatitude Theta (from north pole), longitude Phi on S²
+// parameterised by psi ∈ [0,2π]
+function hopfFiberPts(Theta, Phi, nSeg){
+  const eta = Theta/2;
+  const pts = [];
+  for(let i=0;i<=nSeg;i++){
+    const psi = (i/nSeg)*2*Math.PI;
+    const z1r = Math.cos(eta)*Math.cos(psi);
+    const z1i = Math.cos(eta)*Math.sin(psi);
+    const z2r = Math.sin(eta)*Math.cos(psi+Phi);
+    const z2i = Math.sin(eta)*Math.sin(psi+Phi);
+    const d = 1 - z2i;
+    if(Math.abs(d)<1e-5) continue;
+    pts.push(new THREE.Vector3(z1r/d, z1i/d, z2r/d));
+  }
+  return pts;
+}
+
+// ── Scene S² ─────────────────────────────────────────────
+const cvS2 = document.getElementById('cvS2');
+const wS2 = document.getElementById('wrapS2');
+const rS2 = new THREE.WebGLRenderer({canvas:cvS2, antialias:true, alpha:true});
+rS2.setPixelRatio(Math.min(devicePixelRatio,2));
+rS2.setClearColor(0x06060e,1);
+const scS2 = new THREE.Scene();
+const camS2 = new THREE.PerspectiveCamera(40, 1, 0.01, 100);
+camS2.position.set(0,0,3.8);
+camS2.lookAt(0,0,0);
+scS2.add(new THREE.AmbientLight(0xffffff,0.5));
+const dlS2 = new THREE.DirectionalLight(0xffffff,0.8);
+dlS2.position.set(3,4,3); scS2.add(dlS2);
+
+// sphere surface (semi-transparent)
+const sphGeo = new THREE.SphereGeometry(1,48,48);
+const sphMat = new THREE.MeshPhongMaterial({color:0x101028, transparent:true, opacity:0.45, side:THREE.FrontSide});
+scS2.add(new THREE.Mesh(sphGeo, sphMat));
+// wireframe sphere (subtle)
+const wfMat = new THREE.MeshBasicMaterial({color:0x222244, wireframe:true, transparent:true, opacity:0.18});
+scS2.add(new THREE.Mesh(new THREE.SphereGeometry(1,24,16), wfMat));
+
+// latitude circles group
+const latGrp = new THREE.Group(); scS2.add(latGrp);
+// meridian lines group
+const merGrp = new THREE.Group(); scS2.add(merGrp);
+// highlight latitude circle + point
+const hlGrp = new THREE.Group(); scS2.add(hlGrp);
+
+function buildS2(){
+  while(latGrp.children.length) latGrp.remove(latGrp.children[0]);
+  while(merGrp.children.length) merGrp.remove(merGrp.children[0]);
+  while(hlGrp.children.length)  hlGrp.remove(hlGrp.children[0]);
+
+  const nLat = P.latLines;
+  const nSeg = 128;
+
+  // latitude circles (excluding poles)
+  for(let li=0;li<nLat;li++){
+    const lat = -Math.PI/2 + (li+1)*(Math.PI/(nLat+1)); // latitude in rad
+    const r = Math.cos(lat);
+    const y = Math.sin(lat);
+    const pts = [];
+    for(let i=0;i<=nSeg;i++){
+      const a = (i/nSeg)*2*Math.PI;
+      pts.push(new THREE.Vector3(r*Math.cos(a), y, r*Math.sin(a)));
+    }
+    const geo = new THREE.BufferGeometry().setFromPoints(pts);
+    const hue = li/(nLat-1);
+    const col = new THREE.Color().setHSL(hue, 0.85, 0.62);
+    const mat = new THREE.LineBasicMaterial({color:col, transparent:true, opacity: P.singleLat?0.0:0.7});
+    latGrp.add(new THREE.Line(geo, mat));
+  }
+  latGrp.userData.nLat = nLat;
+
+  // meridians
+  if(P.meridians){
+    const nMer = 12;
+    for(let mi=0;mi<nMer;mi++){
+      const lon = (mi/nMer)*2*Math.PI;
+      const pts = [];
+      for(let i=0;i<=nSeg;i++){
+        const lat = -Math.PI/2+(i/nSeg)*Math.PI;
+        pts.push(new THREE.Vector3(Math.cos(lat)*Math.cos(lon), Math.sin(lat), Math.cos(lat)*Math.sin(lon)));
+      }
+      const geo = new THREE.BufferGeometry().setFromPoints(pts);
+      merGrp.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color:0x333366,transparent:true,opacity:0.35})));
+    }
+  }
+
+  // highlight circle at current theta, and marker point at (theta,phi)
+  const thetaRad = P.theta*Math.PI/180;
+  const r = Math.cos(thetaRad);
+  const y = Math.sin(thetaRad);
+
+  // find which lat band this is closest to for color
+  const fracLat = (P.theta+90)/180;
+  const hue = fracLat;
+  const hlColor = new THREE.Color().setHSL(hue,1.0,0.7);
+
+  const hlPts = [];
+  for(let i=0;i<=256;i++){
+    const a=(i/256)*2*Math.PI;
+    hlPts.push(new THREE.Vector3(r*Math.cos(a),y,r*Math.sin(a)));
+  }
+  const hlGeo = new THREE.BufferGeometry().setFromPoints(hlPts);
+  const hlLine = new THREE.Line(hlGeo, new THREE.LineBasicMaterial({color:hlColor, linewidth:2}));
+  hlGrp.add(hlLine);
+
+  // glow ring (tube)
+  if(r>0.01){
+    const circ = new THREE.TorusGeometry(r, 0.012, 8, 128);
+    const circM = new THREE.MeshBasicMaterial({color:hlColor, transparent:true, opacity:0.6});
+    const circMesh = new THREE.Mesh(circ, circM);
+    circMesh.rotation.x = Math.PI/2;
+    circMesh.position.y = y;
+    hlGrp.add(circMesh);
+  }
+
+  // point marker
+  const phiRad = P.phi*Math.PI/180;
+  const px2 = r*Math.cos(phiRad), py2 = y, pz2 = r*Math.sin(phiRad);
+  const ptGeo = new THREE.SphereGeometry(0.045,12,12);
+  const ptMat = new THREE.MeshBasicMaterial({color:0xffffff});
+  const pt = new THREE.Mesh(ptGeo,ptMat);
+  pt.position.set(px2,py2,pz2);
+  hlGrp.add(pt);
+  // outer glow sphere
+  const glGeo = new THREE.SphereGeometry(0.07,12,12);
+  const glMat = new THREE.MeshBasicMaterial({color:hlColor,transparent:true,opacity:0.35});
+  const gl = new THREE.Mesh(glGeo,glMat);
+  gl.position.set(px2,py2,pz2);
+  hlGrp.add(gl);
+
+  // axis line
+  const axPts = [new THREE.Vector3(0,-1.3,0),new THREE.Vector3(0,1.3,0)];
+  const axGeo = new THREE.BufferGeometry().setFromPoints(axPts);
+  hlGrp.add(new THREE.Line(axGeo, new THREE.LineBasicMaterial({color:0x334466,transparent:true,opacity:0.4})));
+}
+buildS2();
+
+// ── Scene R³ ─────────────────────────────────────────────
+const cvR3 = document.getElementById('cvR3');
+const wR3 = document.getElementById('wrapR3');
+const rR3 = new THREE.WebGLRenderer({canvas:cvR3, antialias:true, alpha:true});
+rR3.setPixelRatio(Math.min(devicePixelRatio,2));
+rR3.setClearColor(0x06060e,1);
+const scR3 = new THREE.Scene();
+const camR3 = new THREE.PerspectiveCamera(42,1,0.01,200);
+camR3.position.set(0,2,7);
+camR3.lookAt(0,0,0);
+scR3.add(new THREE.AmbientLight(0xffffff,0.4));
+const dlR3 = new THREE.DirectionalLight(0xffffff,0.9);
+dlR3.position.set(4,6,4); scR3.add(dlR3);
+
+// axis cross
+function addAxes(sc){
+  [[1,0,0,0xff4444],[0,1,0,0x44ff44],[0,0,1,0x4488ff]].forEach(([x,y,z,c])=>{
+    const g=new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0,0,0),new THREE.Vector3(x*2.5,y*2.5,z*2.5)]);
+    sc.add(new THREE.Line(g,new THREE.LineBasicMaterial({color:c,transparent:true,opacity:0.25})));
+  });
+}
+addAxes(scR3);
+
+const torusGrp = new THREE.Group(); scR3.add(torusGrp);
+
+function buildR3(){
+  while(torusGrp.children.length) torusGrp.remove(torusGrp.children[0]);
+
+  const nLat = P.latLines;
+  const nF = P.nFibers;
+  const nSeg = 100;
+  const sc = 2.2;
+
+  for(let li=0; li<nLat; li++){
+    if(P.singleLat){
+      // find the latitude closest to P.theta
+      const lat = -Math.PI/2 + (li+1)*(Math.PI/(nLat+1));
+      const latDeg = lat*180/Math.PI;
+      const closest = Math.round((P.theta+90)/(180/(nLat+1)))-1;
+      if(li!==closest) continue;
+    }
+    const lat = -Math.PI/2 + (li+1)*(Math.PI/(nLat+1));
+    const coLat = Math.PI/2 - lat; // colatitude
+    const hue = li/(nLat-1);
+    const isHL = (Math.abs(lat*180/Math.PI - P.theta)<(90/(nLat+1)));
+
+    const vertices=[], colors=[], indices=[];
+    const stride = nSeg+1;
+
+    for(let fi=0; fi<nF; fi++){
+      const phi = (fi/nF)*2*Math.PI;
+      const pts = hopfFiberPts(coLat, phi, nSeg);
+      const col = new THREE.Color().setHSL(hue, isHL?1.0:0.75, isHL?0.7:0.55);
+      for(let i=0;i<pts.length;i++){
+        vertices.push(pts[i].x*sc, pts[i].y*sc, pts[i].z*sc);
+        colors.push(col.r, col.g, col.b);
+      }
+      // pad if needed
+      while(vertices.length/3 < (fi+1)*stride){
+        const last=pts[pts.length-1];
+        vertices.push(last.x*sc,last.y*sc,last.z*sc);
+        colors.push(col.r,col.g,col.b);
+      }
+    }
+
+    // surface triangulation: connect fiber fi with fiber (fi+1)%nF
+    for(let fi=0;fi<nF;fi++){
+      const fn=(fi+1)%nF;
+      for(let i=0;i<nSeg;i++){
+        const a=fi*stride+i, b=fi*stride+i+1;
+        const c=fn*stride+i, d=fn*stride+i+1;
+        indices.push(a,b,c, b,d,c);
+      }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));
+    geo.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));
+    geo.setIndex(indices);
+    geo.computeVertexNormals();
+
+    const mat = new THREE.MeshPhongMaterial({
+      vertexColors:true, side:THREE.DoubleSide,
+      transparent:true, opacity: P.opacity*(isHL?1.0:0.5),
+      shininess:50
+    });
+    torusGrp.add(new THREE.Mesh(geo,mat));
+
+    // wire fibers
+    for(let fi=0;fi<nF;fi++){
+      const phi=(fi/nF)*2*Math.PI;
+      const pts=hopfFiberPts(coLat,phi,60);
+      if(pts.length<2) continue;
+      const wPts=pts.map(p=>new THREE.Vector3(p.x*sc,p.y*sc,p.z*sc));
+      const wGeo=new THREE.BufferGeometry().setFromPoints(wPts);
+      const col=new THREE.Color().setHSL(hue,1,0.75);
+      torusGrp.add(new THREE.Line(wGeo,new THREE.LineBasicMaterial({color:col,transparent:true,opacity:isHL?0.7:0.2})));
+    }
+  }
+
+  // highlight torus for current theta
+  const thetaRad = P.theta*Math.PI/180;
+  const coLat = Math.PI/2 - thetaRad;
+  const hue = (P.theta+90)/180;
+  const hlCol = new THREE.Color().setHSL(hue,1.0,0.75);
+
+  // draw highlight fibers with full opacity
+  for(let fi=0;fi<P.nFibers*2;fi++){
+    const phi=(fi/(P.nFibers*2))*2*Math.PI;
+    const pts=hopfFiberPts(coLat,phi,80);
+    if(pts.length<2) continue;
+    const wPts=pts.map(p=>new THREE.Vector3(p.x*sc,p.y*sc,p.z*sc));
+    const wGeo=new THREE.BufferGeometry().setFromPoints(wPts);
+    torusGrp.add(new THREE.Line(wGeo,new THREE.LineBasicMaterial({color:hlCol,transparent:true,opacity:0.9})));
+  }
+}
+buildR3();
+
+// ── Resize ───────────────────────────────────────────────
+function resize(){
+  const W2=wS2.clientWidth, H2=wS2.clientHeight;
+  rS2.setSize(W2,H2);
+  camS2.aspect=W2/H2; camS2.updateProjectionMatrix();
+
+  const WR=wR3.clientWidth, HR=wR3.clientHeight;
+  rR3.setSize(WR,HR);
+  camR3.aspect=WR/HR; camR3.updateProjectionMatrix();
+}
+window.addEventListener('resize',resize);
+resize();
+
+// ── Orbit controls (manual) ──────────────────────────────
+function makeOrbit(canvas, camera){
+  let drag=false, px=0,py=0, rotX=0.25,rotY=0.4, dist=camera.position.length();
+  let autoAngle=0;
+  const state={rotX,rotY,dist,autoAngle,drag};
+
+  canvas.addEventListener('mousedown',e=>{state.drag=true;px=e.clientX;py=e.clientY;});
+  window.addEventListener('mouseup',()=>{state.drag=false;});
+  canvas.addEventListener('mousemove',e=>{
+    if(!state.drag)return;
+    state.rotY+=(e.clientX-px)*0.012;
+    state.rotX+=(e.clientY-py)*0.012;
+    state.rotX=Math.max(-1.4,Math.min(1.4,state.rotX));
+    px=e.clientX;py=e.clientY;
+  });
+  canvas.addEventListener('wheel',e=>{
+    state.dist+=e.deltaY*0.01;
+    state.dist=Math.max(2,Math.min(15,state.dist));
+    e.preventDefault();
+  },{passive:false});
+
+  let lt=null;
+  canvas.addEventListener('touchstart',e=>{lt=e.touches[0];},{passive:true});
+  canvas.addEventListener('touchmove',e=>{
+    if(!lt)return;
+    state.rotY+=(e.touches[0].clientX-lt.clientX)*0.012;
+    state.rotX+=(e.touches[0].clientY-lt.clientY)*0.012;
+    lt=e.touches[0];
+    e.preventDefault();
+  },{passive:false});
+
+  return state;
+}
+
+const orbitS2 = makeOrbit(cvS2, camS2);
+const orbitR3 = makeOrbit(cvR3, camR3);
+
+// ── Animation loop ───────────────────────────────────────
+function updateCamera(cam, orbit){
+  if(P.autoRot) orbit.autoAngle+=0.005;
+  const y=orbit.rotY+orbit.autoAngle;
+  cam.position.set(
+    orbit.dist*Math.cos(orbit.rotX)*Math.sin(y),
+    orbit.dist*Math.sin(orbit.rotX),
+    orbit.dist*Math.cos(orbit.rotX)*Math.cos(y)
+  );
+  cam.lookAt(0,0,0);
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  updateCamera(camS2,orbitS2);
+  updateCamera(camR3,orbitR3);
+  rS2.render(scS2,camS2);
+  rR3.render(scR3,camR3);
+}
+animate();
+
+// ── Controls ─────────────────────────────────────────────
+function rebuildAll(){ buildS2(); buildR3(); }
+
+function slider(id,valId,key,fmt,rebuild){
+  const el=document.getElementById(id);
+  const vEl=document.getElementById(valId);
+  vEl.textContent=fmt(el.value);
+  el.addEventListener('input',function(){
+    P[key]=parseFloat(this.value);
+    vEl.textContent=fmt(this.value);
+    rebuild();
+  });
+}
+slider('slTheta','vTheta','theta',v=>v+'°',rebuildAll);
+slider('slPhi','vPhi','phi',v=>v+'°',rebuildAll);
+slider('slLatLines','vLatLines','latLines',v=>v,rebuildAll);
+slider('slNF','vNF','nFibers',v=>v,rebuildAll);
+slider('slOpacity','vOpacity','opacity',v=>v+'%',v=>{P.opacity=v/100;buildR3();});
+
+function toggle(id, key, rebuild){
+  const el=document.getElementById(id);
+  el.addEventListener('click',()=>{
+    P[key]=!P[key];
+    el.classList.toggle('on',P[key]);
+    rebuild();
+  });
+}
+toggle('togSingle','singleLat',rebuildAll);
+toggle('togMeridians','meridians',buildS2);
+toggle('togAutoRot','autoRot',()=>{});
+
+})();
+</script>
+</body>
+</html>
