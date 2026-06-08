@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>有理数回転 — Rational Rotation Spiral</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Shippori+Mincho:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --red: #e01010;
+    --red-dark: #9a0a0a;
+    --red-glow: rgba(220,16,16,0.18);
+    --bg: #0a0a0a;
+    --surface: #111111;
+    --surface2: #181818;
+    --border: rgba(255,255,255,0.08);
+    --text: #f0f0f0;
+    --text-muted: #888;
+    --mono: 'DM Mono', monospace;
+    --serif: 'Shippori Mincho', serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    grid-template-rows: auto 1fr;
+  }
+
+  header {
+    grid-column: 1 / -1;
+    padding: 20px 28px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+
+  header h1 {
+    font-family: var(--serif);
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: var(--red);
+  }
+
+  header span {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  .sidebar {
+    padding: 24px 20px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+
+  .fraction-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .frac-col { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+
+  .frac-col label {
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+  }
+
+  .frac-val {
+    font-size: 28px;
+    font-weight: 500;
+    min-width: 48px;
+    text-align: center;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .frac-btns { display: flex; gap: 4px; }
+
+  .btn-adj {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+    font-family: var(--mono);
+  }
+  .btn-adj:hover { border-color: var(--red); color: var(--red); }
+
+  .frac-div {
+    font-size: 32px;
+    color: var(--border);
+    margin-top: 12px;
+    user-select: none;
+  }
+
+  .angle-display {
+    text-align: center;
+    margin-top: 8px;
+  }
+
+  .angle-display .deg {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--red);
+  }
+
+  .angle-display .reduced {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 3px;
+  }
+
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .slider-row .row-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .slider-row .row-header label {
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  .slider-row .row-header span {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  input[type=range] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: var(--red);
+    cursor: pointer;
+    box-shadow: 0 0 8px var(--red-glow);
+  }
+
+  .presets { display: flex; flex-wrap: wrap; gap: 5px; }
+
+  .preset-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 4px 8px;
+    border-radius: 5px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .preset-btn:hover { border-color: var(--red); color: var(--red); }
+  .preset-btn.active { border-color: var(--red); color: var(--red); background: rgba(220,16,16,0.08); }
+
+  .toggle-row {
+    display: flex;
+    gap: 16px;
+  }
+
+  .toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-muted);
+    user-select: none;
+  }
+
+  .toggle-label input { display: none; }
+
+  .toggle-box {
+    width: 30px; height: 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    position: relative;
+    transition: background 0.2s;
+  }
+
+  .toggle-box::after {
+    content: '';
+    width: 10px; height: 10px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    position: absolute;
+    top: 2px; left: 2px;
+    transition: all 0.2s;
+  }
+
+  .toggle-label input:checked + .toggle-box {
+    background: rgba(220,16,16,0.2);
+    border-color: var(--red);
+  }
+
+  .toggle-label input:checked + .toggle-box::after {
+    background: var(--red);
+    left: 16px;
+  }
+
+  .info-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.7;
+  }
+
+  .info-box .hl { color: var(--red); }
+
+  .canvas-area {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: var(--bg);
+  }
+
+  canvas {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - 80px);
+    border-radius: 4px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>有理数回転</h1>
+  <span>Rational Rotation Spiral — p/q × 360°</span>
+</header>
+
+<aside class="sidebar">
+
+  <div>
+    <div class="section-label">回転角 p/q</div>
+    <div class="fraction-control">
+      <div class="frac-col">
+        <label>分子 p</label>
+        <div class="frac-val" id="pVal">137</div>
+        <div class="frac-btns">
+          <button class="btn-adj" onclick="adj('p',-1)">−</button>
+          <button class="btn-adj" onclick="adj('p',1)">＋</button>
+        </div>
+      </div>
+      <div class="frac-div">／</div>
+      <div class="frac-col">
+        <label>分母 q</label>
+        <div class="frac-val" id="qVal">360</div>
+        <div class="frac-btns">
+          <button class="btn-adj" onclick="adj('q',-1)">−</button>
+          <button class="btn-adj" onclick="adj('q',1)">＋</button>
+        </div>
+      </div>
+    </div>
+    <div class="angle-display">
+      <div class="deg" id="angleDeg">137.000°</div>
+      <div class="reduced" id="reducedFrac">既約分数: 137/360</div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">パラメータ</div>
+    <div style="display: flex; flex-direction: column; gap: 12px;">
+      <div class="slider-row">
+        <div class="row-header">
+          <label>円の数</label>
+          <span id="countOut">80</span>
+        </div>
+        <input type="range" id="count" min="5" max="200" value="80">
+      </div>
+      <div class="slider-row">
+        <div class="row-header">
+          <label>拡大率 c</label>
+          <span id="scaleOut">5.0</span>
+        </div>
+        <input type="range" id="scale" min="1" max="15" step="0.1" value="5">
+      </div>
+      <div class="slider-row">
+        <div class="row-header">
+          <label>円サイズ</label>
+          <span id="circleSizeOut">0.90</span>
+        </div>
+        <input type="range" id="circleSize" min="0.3" max="2" step="0.05" value="0.9">
+      </div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">プリセット</div>
+    <div class="presets">
+      <button class="preset-btn" onclick="setPreset(137,360,'p0')">137/360≈黄金角</button>
+      <button class="preset-btn" onclick="setPreset(1,2,'p1')">1/2 (180°)</button>
+      <button class="preset-btn" onclick="setPreset(1,3,'p2')">1/3 (120°)</button>
+      <button class="preset-btn" onclick="setPreset(1,4,'p3')">1/4 (90°)</button>
+      <button class="preset-btn" onclick="setPreset(2,5,'p4')">2/5 (144°)</button>
+      <button class="preset-btn" onclick="setPreset(3,8,'p5')">3/8 (135°)</button>
+      <button class="preset-btn" onclick="setPreset(5,13,'p6')">5/13</button>
+      <button class="preset-btn" onclick="setPreset(8,21,'p7')">8/21</button>
+      <button class="preset-btn" onclick="setPreset(13,34,'p8')">13/34</button>
+      <button class="preset-btn" onclick="setPreset(21,55,'p9')">21/55</button>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label">表示</div>
+    <div class="toggle-row">
+      <label class="toggle-label">
+        <input type="checkbox" id="showNums" checked>
+        <div class="toggle-box"></div>
+        番号
+      </label>
+      <label class="toggle-label">
+        <input type="checkbox" id="colorMode">
+        <div class="toggle-box"></div>
+        カラー
+      </label>
+    </div>
+  </div>
+
+  <div class="info-box" id="infoBox">
+    <span class="hl">有理数回転</span>は必ず周期的。<br>
+    q本のアームが現れます。<br>
+    フィボナッチ比 (2/5, 3/8, 5/13…) が<br>黄金角に収束します。
+  </div>
+
+</aside>
+
+<main class="canvas-area">
+  <canvas id="canvas"></canvas>
+</main>
+
+<script>
+let state = { p: 137, q: 360 };
+let activePreset = 'p0';
+
+function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+
+function adj(key, delta) {
+  if (key === 'p') state.p = Math.max(1, state.p + delta);
+  if (key === 'q') state.q = Math.max(2, state.q + delta);
+  activePreset = null;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  update();
+}
+
+function setPreset(p, q, id) {
+  state.p = p; state.q = q;
+  activePreset = id;
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.preset-btn').forEach(b => {
+    if (b.getAttribute('onclick').includes("'" + id + "'")) b.classList.add('active');
+  });
+  update();
+}
+
+function update() {
+  const g = gcd(state.p, state.q);
+  const rp = state.p / g, rq = state.q / g;
+  document.getElementById('pVal').textContent = rp;
+  document.getElementById('qVal').textContent = rq;
+  const deg = (rp / rq) * 360;
+  document.getElementById('angleDeg').textContent = deg.toFixed(4) + '°';
+  document.getElementById('reducedFrac').textContent = `既約分数: ${rp}/${rq} | 周期: ${rq}`;
+
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const goldenDeg = 360 * (2 - phi);
+  const diff = Math.abs(deg - goldenDeg).toFixed(4);
+  document.getElementById('infoBox').innerHTML =
+    `<span class="hl">${rp}/${rq}</span> × 360° = ${deg.toFixed(4)}°<br>` +
+    `周期 <span class="hl">${rq}</span> — ${rq}本のアームが現れます<br>` +
+    `黄金角との差: <span class="hl">${diff}°</span><br>` +
+    (rq <= 10 ? '<br>⚠ 分母が小さいと腕が少なく重なりが目立ちます' : '');
+
+  draw();
+}
+
+function draw() {
+  const canvas = document.getElementById('canvas');
+  const container = canvas.parentElement;
+  const size = Math.min(container.clientWidth - 32, container.clientHeight - 32, 700);
+  canvas.width = size;
+  canvas.height = size;
+
+  const ctx = canvas.getContext('2d');
+  const g = gcd(state.p, state.q);
+  const rp = state.p / g, rq = state.q / g;
+  const angle = (rp / rq) * 2 * Math.PI;
+  const count = parseInt(document.getElementById('count').value);
+  const c = parseFloat(document.getElementById('scale').value);
+  const csf = parseFloat(document.getElementById('circleSize').value);
+  const showNums = document.getElementById('showNums').checked;
+  const colorMode = document.getElementById('colorMode').checked;
+
+  const W = canvas.width, H = canvas.height;
+  const cx = W / 2, cy = H / 2;
+
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillRect(0, 0, W, H);
+
+  for (let i = 0; i < count; i++) {
+    const r = c * Math.sqrt(i + 1);
+    const theta = i * angle;
+    const x = cx + r * Math.cos(theta);
+    const y = cy + r * Math.sin(theta);
+    const radius = Math.max(csf * c * 0.45 * Math.sqrt(c) * (1 / (2 * Math.sqrt(i + 1)) + 0.5), 3);
+
+    let fill;
+    if (colorMode) {
+      const h = Math.round((i / count) * 300);
+      fill = `hsl(${h}, 85%, 50%)`;
+    } else {
+      const t = i / count;
+      const r0 = Math.round(180 + t * 60);
+      fill = `rgb(${r0}, ${Math.round(t * 10)}, ${Math.round(t * 10)})`;
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    if (showNums && radius > 7) {
+      const fs = Math.min(radius * 0.82, 20);
+      if (fs >= 7) {
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.font = `500 ${Math.round(fs)}px 'DM Mono', monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(i + 1, x, y);
+      }
+    }
+  }
+}
+
+['count','scale','circleSize'].forEach(id => {
+  document.getElementById(id).addEventListener('input', function() {
+    const out = id + 'Out';
+    const el = document.getElementById(out);
+    if (id === 'count') el.textContent = this.value;
+    else el.textContent = parseFloat(this.value).toFixed(id === 'scale' ? 1 : 2);
+    draw();
+  });
+});
+
+document.getElementById('showNums').addEventListener('change', draw);
+document.getElementById('colorMode').addEventListener('change', draw);
+window.addEventListener('resize', draw);
+
+setPreset(137, 360, 'p0');
+</script>
+</body>
+</html>
