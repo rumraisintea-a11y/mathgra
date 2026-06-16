@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>フロップゲーム</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f6f2; --surface: #ffffff; --border: #e2e0d8;
+    --text: #1a1916; --muted: #6b6960; --accent: #2d5be3;
+    --neg-fill: #fde8e8; --neg-stroke: #c94040; --neg-text: #8b1a1a;
+    --pos-fill: #e6f0e6; --pos-stroke: #2e7d32; --pos-text: #1b4d1e;
+    --radius: 10px; --font: 'Helvetica Neue', Arial, sans-serif; --mono: 'Courier New', monospace;
+  }
+  body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; padding: 24px 16px; }
+  h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .rule-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; margin-bottom: 20px; font-size: 13px; line-height: 1.8; color: var(--muted); }
+  .rule-box code { font-family: var(--mono); background: #f0ede6; padding: 1px 6px; border-radius: 4px; color: var(--text); font-size: 12px; }
+  .rule-box strong { color: var(--text); }
+  .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+  .tab { padding: 7px 22px; font-size: 14px; font-weight: 500; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--muted); cursor: pointer; transition: all 0.15s; }
+  .tab:hover { background: #f0ede6; color: var(--text); }
+  .tab.active { background: var(--text); color: #fff; border-color: var(--text); }
+  .main-grid { display: grid; grid-template-columns: 1fr 320px; gap: 16px; align-items: start; }
+  @media (max-width: 720px) { .main-grid { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; }
+  .card-title { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 12px; }
+  #canvas-wrap { display: flex; align-items: center; justify-content: center; min-height: 300px; }
+  #main-svg { display: block; max-width: 100%; }
+  .inputs-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .inputs-row label { font-size: 12px; color: var(--muted); font-weight: 500; min-width: 24px; text-align: center; }
+  .vertex-inp { width: 54px; font-size: 14px; font-family: var(--mono); text-align: center; padding: 5px 4px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); transition: border-color 0.15s; }
+  .vertex-inp:focus { outline: none; border-color: var(--accent); }
+  .vertex-inp.neg { border-color: var(--neg-stroke); background: var(--neg-fill); color: var(--neg-text); }
+  .sum-line { font-size: 13px; color: var(--muted); margin-bottom: 12px; min-height: 18px; }
+  .sum-ok { color: var(--pos-text); font-weight: 600; }
+  .sum-bad { color: var(--neg-text); font-weight: 600; }
+  .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .preset-btn { font-size: 12px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--muted); cursor: pointer; font-family: var(--mono); transition: all 0.12s; }
+  .preset-btn:hover { background: #f0ede6; color: var(--text); }
+  .btn-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  .btn { flex: 1; padding: 8px 10px; font-size: 13px; font-weight: 500; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text); cursor: pointer; transition: all 0.12s; }
+  .btn:hover { background: #f0ede6; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--text); color: #fff; border-color: var(--text); }
+  .btn-primary:hover { background: #333; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .stat { background: var(--bg); border-radius: 7px; padding: 10px 12px; text-align: center; }
+  .stat-label { font-size: 11px; color: var(--muted); margin-bottom: 3px; font-weight: 500; }
+  .stat-val { font-size: 20px; font-weight: 600; font-family: var(--mono); }
+  .done-msg { font-size: 13px; font-weight: 500; padding: 8px 12px; border-radius: 7px; margin-bottom: 12px; display: none; }
+  .done-msg.show { display: block; }
+  .done-msg.success { background: var(--pos-fill); color: var(--pos-text); }
+  .done-msg.error { background: var(--neg-fill); color: var(--neg-text); }
+  .log-wrap { max-height: 200px; overflow-y: auto; background: var(--bg); border-radius: 7px; padding: 8px 10px; }
+  .log-entry { font-size: 12px; font-family: var(--mono); color: var(--muted); padding: 2px 0; border-bottom: 1px solid var(--border); line-height: 1.6; }
+  .log-entry:last-child { border-bottom: none; }
+  .log-entry.op { color: var(--accent); }
+  .log-entry.done { color: var(--pos-text); font-weight: 600; }
+  .speed-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .speed-row label { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .speed-row input[type=range] { flex: 1; }
+  .speed-row span { font-size: 12px; color: var(--muted); min-width: 38px; font-family: var(--mono); text-align: right; }
+</style>
+</head>
+<body>
+
+<h1>フロップゲーム</h1>
+<p class="subtitle">多角形の各頂点に整数を配置し、負の数がある限り操作を繰り返すゲームのシミュレーター</p>
+
+<div class="rule-box">
+  <strong>操作ルール：</strong>
+  3つの連続した頂点 <code>(x, y, z)</code> において、<strong>真ん中の頂点 y が負</strong>のとき、
+  <code>(x, y, z) → (x+y, −y, z+y)</code> に置き換えます。<br>
+  合計は不変：<code>(x+y) + (−y) + (z+y) = x + y + z</code>　✓<br>
+  <span style="color:#b08000; font-weight:500;">💡 頂点をクリックすると、その頂点を真ん中とした操作を実行します（その頂点が負の場合のみ）。</span>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchShape(3)">三角形</button>
+  <button class="tab" onclick="switchShape(4)">四角形</button>
+  <button class="tab" onclick="switchShape(5)">五角形</button>
+</div>
+
+<div class="main-grid">
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div id="canvas-wrap">
+        <svg id="main-svg" viewBox="-160 -160 320 320" width="320" height="320"></svg>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">初期値を設定（合計 > 0 が必要）</div>
+      <div class="inputs-row" id="inputs-row"></div>
+      <div class="sum-line" id="sum-line"></div>
+      <div class="card-title">プリセット</div>
+      <div class="presets" id="presets"></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="card" style="margin-bottom:16px;">
+      <div class="card-title">操作</div>
+      <div class="stats-grid">
+        <div class="stat"><div class="stat-label">ステップ数</div><div class="stat-val" id="stat-steps">0</div></div>
+        <div class="stat"><div class="stat-label">合計（不変）</div><div class="stat-val" id="stat-sum">—</div></div>
+      </div>
+      <div class="done-msg" id="done-msg"></div>
+      <div class="btn-row">
+        <button class="btn" id="btn-step" onclick="stepOnce()">1ステップ</button>
+        <button class="btn btn-primary" id="btn-run" onclick="toggleRun()">▶ 自動実行</button>
+      </div>
+      <div class="speed-row">
+        <label>速度</label>
+        <input type="range" min="80" max="1200" value="500" id="speed-slider" oninput="updateSpeed(this.value)">
+        <span id="speed-label">500ms</span>
+      </div>
+      <button class="btn" style="width:100%;" onclick="resetSim()">リセット</button>
+    </div>
+    <div class="card">
+      <div class="card-title">操作ログ</div>
+      <div class="log-wrap" id="log-wrap">
+        <div class="log-entry">操作を実行するとここに表示されます。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────
+let n = 3;
+let vals = [];
+let steps = 0;
+let running = false;
+let runTimer = null;
+let delay = 500;
+
+const PRESETS = {
+  3: [
+    { label: '例A', v: [4, -2, 1] },
+    { label: '例B', v: [8, -3, -1] },
+    { label: '例C', v: [5, -4, 2] },
+  ],
+  4: [
+    { label: '例A', v: [3, -2, 5, -1] },
+    { label: '例B', v: [6, -4, 1, -2] },
+    { label: '例C', v: [5, -1, -2, 3] },
+  ],
+  5: [
+    { label: '例A', v: [5, -3, 4, -2, 1] },
+    { label: '例B', v: [8, -5, 3, -1, -4] },
+    { label: '例C', v: [4, -1, -3, 2, 1] },
+  ],
+};
+
+// ── Shape switch ────────────────────────────────────────────────────────
+function switchShape(newN) {
+  stopRun();
+  n = newN;
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', [3,4,5][i] === n);
+  });
+  loadPreset(0);
+}
+
+function loadPreset(idx) {
+  stopRun();
+  vals = [...PRESETS[n][idx].v];
+  steps = 0;
+  hideDoneMsg();
+  buildInputs();
+  buildPresets();
+  updateSumLine();
+  updateStepDisplay();
+  drawPolygon();
+  clearLog();
+}
+
+// ── UI builders ─────────────────────────────────────────────────────────
+function buildInputs() {
+  const row = document.getElementById('inputs-row');
+  row.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const lbl = document.createElement('label');
+    lbl.textContent = `v${i}`;
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'vertex-inp' + (vals[i] < 0 ? ' neg' : '');
+    inp.value = vals[i];
+    inp.id = 'inp-' + i;
+    inp.addEventListener('input', () => {
+      vals[i] = parseInt(inp.value) || 0;
+      inp.className = 'vertex-inp' + (vals[i] < 0 ? ' neg' : '');
+      steps = 0; hideDoneMsg(); updateSumLine(); updateStepDisplay(); drawPolygon(); clearLog();
+    });
+    row.appendChild(lbl);
+    row.appendChild(inp);
+  }
+}
+
+function buildPresets() {
+  const wrap = document.getElementById('presets');
+  wrap.innerHTML = '';
+  PRESETS[n].forEach((p, i) => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = `${p.label}: [${p.v.join(', ')}]`;
+    btn.onclick = () => loadPreset(i);
+    wrap.appendChild(btn);
+  });
+}
+
+function syncInputs() {
+  for (let i = 0; i < n; i++) {
+    const el = document.getElementById('inp-' + i);
+    if (!el) continue;
+    el.value = vals[i];
+    el.className = 'vertex-inp' + (vals[i] < 0 ? ' neg' : '');
+  }
+}
+
+function updateSumLine() {
+  const s = vals.reduce((a, b) => a + b, 0);
+  document.getElementById('stat-sum').textContent = s;
+  const el = document.getElementById('sum-line');
+  if (s > 0) {
+    el.innerHTML = `合計 = <span class="sum-ok">${s}</span>（正 ✓）`;
+  } else {
+    el.innerHTML = `合計 = <span class="sum-bad">${s}</span>（合計は正でなければなりません）`;
+  }
+}
+
+function updateStepDisplay() {
+  document.getElementById('stat-steps').textContent = steps;
+}
+
+// ── SVG ────────────────────────────────────────────────────────────────
+const R = 118;
+
+function polyPts() {
+  return Array.from({ length: n }, (_, i) => {
+    const a = (2 * Math.PI * i / n) - Math.PI / 2;
+    return [R * Math.cos(a), R * Math.sin(a)];
+  });
+}
+
+function drawPolygon(hiPrev = -1, hiMid = -1, hiNext = -1) {
+  const svg = document.getElementById('main-svg');
+  const pts = polyPts();
+  const polyStr = pts.map(p => p.map(x => x.toFixed(1)).join(',')).join(' ');
+
+  let html = `<polygon points="${polyStr}" fill="none" stroke="#d0cec4" stroke-width="1.5" stroke-linejoin="round"/>`;
+
+  // highlight arc between hiPrev→hiMid→hiNext
+  if (hiMid >= 0) {
+    const pPrev = pts[hiPrev], pMid = pts[hiMid], pNext = pts[hiNext];
+    html += `<line x1="${pPrev[0].toFixed(1)}" y1="${pPrev[1].toFixed(1)}"
+      x2="${pMid[0].toFixed(1)}" y2="${pMid[1].toFixed(1)}"
+      stroke="#2d5be3" stroke-width="3" stroke-linecap="round" opacity="0.5"/>`;
+    html += `<line x1="${pMid[0].toFixed(1)}" y1="${pMid[1].toFixed(1)}"
+      x2="${pNext[0].toFixed(1)}" y2="${pNext[1].toFixed(1)}"
+      stroke="#2d5be3" stroke-width="3" stroke-linecap="round" opacity="0.5"/>`;
+  }
+
+  pts.forEach((p, i) => {
+    const v = vals[i];
+    const isNeg = v < 0;
+    const isMid = i === hiMid;
+    const isAdj = i === hiPrev || i === hiNext;
+
+    const fill = isNeg ? '#fde8e8' : '#e6f0e6';
+    const stroke = isNeg ? '#c94040' : '#2e7d32';
+    const textCol = isNeg ? '#8b1a1a' : '#1b4d1e';
+    const r = 26;
+
+    if (isMid) {
+      html += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r+6}"
+        fill="none" stroke="#2d5be3" stroke-width="2.5" opacity="0.7"/>`;
+    } else if (isAdj) {
+      html += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r+4}"
+        fill="none" stroke="#2d5be3" stroke-width="1.5" stroke-dasharray="4 3" opacity="0.5"/>`;
+    }
+
+    html += `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="${r}"
+      fill="${fill}" stroke="${stroke}" stroke-width="2"
+      onclick="clickVertex(${i})"
+      style="cursor:${isNeg ? 'pointer' : 'default'}; transition: fill 0.2s;"/>`;
+
+    html += `<text x="${p[0].toFixed(1)}" y="${(p[1]+5).toFixed(1)}"
+      text-anchor="middle" font-size="16" font-weight="600"
+      font-family="'Courier New',monospace" fill="${textCol}"
+      style="pointer-events:none">${v}</text>`;
+
+    const labelR = R + 44;
+    const a = (2 * Math.PI * i / n) - Math.PI / 2;
+    html += `<text x="${(labelR*Math.cos(a)).toFixed(1)}" y="${(labelR*Math.sin(a)+4).toFixed(1)}"
+      text-anchor="middle" font-size="11" fill="#9e9d8e"
+      style="pointer-events:none">v${i}</text>`;
+  });
+
+  svg.innerHTML = html;
+}
+
+// ── Game logic ──────────────────────────────────────────────────────────
+// Operation: vertex j is the MIDDLE (negative) vertex
+// (x, y, z) = (v[prev], v[j], v[next])  →  (x+y, -y, z+y)
+function clickVertex(j) {
+  if (vals[j] >= 0) return;
+  const sum = vals.reduce((a, b) => a + b, 0);
+  if (sum <= 0) { showMsg('合計が正でないと操作できません。', 'error'); return; }
+  performOp(j);
+}
+
+function performOp(j) {
+  const prev = (j - 1 + n) % n;
+  const next = (j + 1) % n;
+  const x = vals[prev], y = vals[j], z = vals[next];
+
+  // (x, y, z) → (x+y, -y, z+y)
+  vals[prev] = x + y;
+  vals[j]    = -y;
+  vals[next] = z + y;
+  steps++;
+
+  updateStepDisplay();
+  updateSumLine();
+  syncInputs();
+  drawPolygon(prev, j, next);
+
+  // log
+  const logWrap = document.getElementById('log-wrap');
+  if (logWrap.firstChild && logWrap.firstChild.textContent.includes('ここに')) {
+    logWrap.innerHTML = '';
+  }
+  const entry = document.createElement('div');
+  entry.className = 'log-entry op';
+  entry.textContent =
+    `step ${steps}: (v${prev},v${j},v${next})=(${x},${y},${z}) → (${x+y},${-y},${z+y})`;
+  logWrap.appendChild(entry);
+  logWrap.scrollTop = logWrap.scrollHeight;
+
+  if (!vals.some(v => v < 0)) {
+    showMsg(`✓ 終了！ ${steps} ステップで全頂点が非負になりました。`, 'success');
+    stopRun();
+    const fin = document.createElement('div');
+    fin.className = 'log-entry done';
+    fin.textContent = `── 終了 (${steps} ステップ) ──`;
+    logWrap.appendChild(fin);
+    logWrap.scrollTop = logWrap.scrollHeight;
+  }
+}
+
+function findNegVertex() {
+  for (let i = 0; i < n; i++) if (vals[i] < 0) return i;
+  return -1;
+}
+
+function stepOnce() {
+  const sum = vals.reduce((a, b) => a + b, 0);
+  if (sum <= 0) { showMsg('合計が正でないと操作できません。', 'error'); return; }
+  const j = findNegVertex();
+  if (j < 0) { showMsg('負の数がありません。すでに終了しています。', 'success'); return; }
+  hideDoneMsg();
+  performOp(j);
+}
+
+function toggleRun() {
+  if (running) { stopRun(); } else { startRun(); }
+}
+
+function startRun() {
+  const sum = vals.reduce((a, b) => a + b, 0);
+  if (sum <= 0) { showMsg('合計が正でないと操作できません。', 'error'); return; }
+  if (findNegVertex() < 0) { showMsg('負の数がありません。すでに終了しています。', 'success'); return; }
+  hideDoneMsg();
+  running = true;
+  document.getElementById('btn-run').textContent = '⏸ 停止';
+  scheduleNext();
+}
+
+function scheduleNext() {
+  if (!running) return;
+  runTimer = setTimeout(() => {
+    const j = findNegVertex();
+    if (j < 0 || !running) { stopRun(); return; }
+    performOp(j);
+    if (findNegVertex() >= 0 && running) scheduleNext();
+    else stopRun();
+  }, delay);
+}
+
+function stopRun() {
+  running = false;
+  clearTimeout(runTimer);
+  document.getElementById('btn-run').textContent = '▶ 自動実行';
+}
+
+function updateSpeed(v) {
+  delay = parseInt(v);
+  document.getElementById('speed-label').textContent = v + 'ms';
+}
+
+function resetSim() { stopRun(); loadPreset(0); }
+
+function clearLog() {
+  document.getElementById('log-wrap').innerHTML =
+    '<div class="log-entry">操作を実行するとここに表示されます。</div>';
+}
+
+function showMsg(msg, type) {
+  const el = document.getElementById('done-msg');
+  el.textContent = msg;
+  el.className = 'done-msg show ' + type;
+}
+
+function hideDoneMsg() {
+  document.getElementById('done-msg').className = 'done-msg';
+}
+
+// ── Boot ────────────────────────────────────────────────────────────────
+switchShape(3);
+</script>
+</body>
+</html>
