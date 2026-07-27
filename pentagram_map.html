@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ペンタグラム写像 & 鳥写像 (Pentagram / Bird Maps)</title>
+<style>
+  body {
+    margin: 0;
+    background: #0f1117;
+    color: #e6e6e6;
+    font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; text-align:center;}
+  p.sub { color: #9aa0ab; font-size: 13px; margin-top: 0; margin-bottom: 16px; text-align: center; max-width: 680px;}
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: center;
+    justify-content: center;
+    background: #171a23;
+    padding: 14px 20px;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    max-width: 760px;
+  }
+  .controls label { font-size: 13px; color: #c7cbd4; display: flex; flex-direction: column; gap: 4px; }
+  input[type=range] { width: 140px; }
+  select, button {
+    background: #232735;
+    color: #e6e6e6;
+    border: 1px solid #333a4d;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  button:hover { background: #2d3345; }
+  button.primary { background: #4c6ef5; border-color: #4c6ef5; }
+  button.primary:hover { background: #3f5ce0; }
+  .presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    max-width: 760px;
+    margin-bottom: 16px;
+  }
+  .presets button { background: #1c2030; border-color: #2b3146; font-size: 12px; }
+  .presets button:hover { background: #2a2f45; border-color: #4c6ef5; }
+  canvas { background: #0b0d13; border-radius: 12px; box-shadow: 0 0 0 1px #232735; }
+  .val { color: #8ea3ff; font-weight: 600; }
+  .footer { margin-top: 10px; font-size: 12px; color: #666d7d; text-align:center; max-width:680px;}
+  #mapLabel { font-size: 13px; color: #8ea3ff; margin-bottom: 6px; text-align:center; min-height: 18px;}
+</style>
+</head>
+<body>
+
+<h1>ペンタグラム写像 & 鳥写像 (Δ<sub>k</sub> Bird Maps)</h1>
+<p class="sub">
+Δ<sub>k</sub> = (0, k+1, k, 2k+1): 頂点 P<sub>a</sub> と P<sub>a+k+1</sub> を結ぶ対角線と、P<sub>a+k</sub> と P<sub>a+2k+1</sub> を結ぶ対角線の交点を新しい頂点とする写像です。
+k=1 のときは通常のペンタグラム写像（凸多角形は1点に収束）。k≥2 では「鳥写像」となり、n が十分大きければ星形多角形（バード）を星形多角形に写します。
+(論文 "A Stroll Through the Pentagram Zoo" 参照)
+</p>
+
+<div id="mapLabel"></div>
+
+<div class="controls">
+  <label>頂点数 n: <span class="val" id="nVal">7</span>
+    <input type="range" id="nSlider" min="5" max="60" value="7">
+  </label>
+  <label>次数 k (Δ<sub>k</sub>): <span class="val" id="kVal">1</span>
+    <input type="range" id="kSlider" min="1" max="19" value="1">
+  </label>
+  <label>反復回数: <span class="val" id="iterVal">6</span>
+    <input type="range" id="iterSlider" min="1" max="16" value="6">
+  </label>
+  <label>形状
+    <select id="shapeSelect">
+      <option value="regular">正多角形（凸）</option>
+      <option value="random">ランダムな星形多角形</option>
+    </select>
+  </label>
+  <label>配色
+    <select id="paletteSelect">
+      <option value="rainbow">虹色（鮮やか）</option>
+      <option value="fig9a">図9風: 赤・橙・黄</option>
+      <option value="fig9b">図9風: 紫・青・桃</option>
+      <option value="fig10a">図10風: 緑・黒・白</option>
+      <option value="fig10b">図10風: エンジ・水色・桃</option>
+      <option value="blueharmony">Blue Harmony 風: 青</option>
+    </select>
+  </label>
+  <label>&nbsp;
+    <button id="regenBtn" class="primary">再生成</button>
+  </label>
+  <label>&nbsp;
+    <button id="animBtn">▶ アニメーション</button>
+  </label>
+</div>
+
+<div class="presets">
+  <button data-preset="pentagram">Δ₁ 通常のペンタグラム写像 (n=7)</button>
+  <button data-preset="fig5">図5相当: Δ₂ 鳥写像 (n=7)</button>
+  <button data-preset="fig6">図6相当: Δ₃ が3枚に裂ける (n=9)</button>
+  <button data-preset="fig8">図8相当: Δ₄ 鳥写像 (n=13)</button>
+  <button data-preset="blueharmony">Blue Harmony 風: Δ₁₇ (n=55)</button>
+</div>
+
+<canvas id="cv" width="640" height="640"></canvas>
+<div class="footer">
+  定理 1.1: 凸多角形に対する通常のペンタグラム写像 (k=1) の反復は指数関数的に1点へ収束する。<br>
+  定理 2.1: k≥2, n&gt;3k のとき、k-bird に Δ<sub>k</sub> を施すと再び星形の k-bird になる（「羽ばたく鳥」の由来）。n が 3k+1 に近いと図6のように多角形が裂けることがある。
+</div>
+
+<script>
+const canvas = document.getElementById('cv');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const nSlider = document.getElementById('nSlider');
+const kSlider = document.getElementById('kSlider');
+const iterSlider = document.getElementById('iterSlider');
+const nVal = document.getElementById('nVal');
+const kVal = document.getElementById('kVal');
+const iterVal = document.getElementById('iterVal');
+const shapeSelect = document.getElementById('shapeSelect');
+const paletteSelect = document.getElementById('paletteSelect');
+const regenBtn = document.getElementById('regenBtn');
+const animBtn = document.getElementById('animBtn');
+const mapLabel = document.getElementById('mapLabel');
+
+let basePolygon = [];
+let animTimer = null;
+let animStep = 0;
+
+function regularPolygon(n) {
+  const pts = [];
+  const R = 260;
+  const cx = W/2, cy = H/2;
+  const phase = -Math.PI/2 + (Math.random()-0.5)*0.3;
+  for (let i = 0; i < n; i++) {
+    const ang = phase + 2*Math.PI*i/n;
+    pts.push([cx + R*Math.cos(ang), cy + R*Math.sin(ang)]);
+  }
+  return pts;
+}
+
+function randomStarPolygon(n) {
+  const cx = W/2, cy = H/2;
+  const angles = [];
+  for (let i = 0; i < n; i++) angles.push(Math.random()*2*Math.PI);
+  angles.sort((a,b)=>a-b);
+  const pts = angles.map(a => {
+    const R = 130 + Math.random()*150;
+    return [cx + R*Math.cos(a), cy + R*Math.sin(a)];
+  });
+  return pts;
+}
+
+function lineIntersect(p1, p2, p3, p4) {
+  const [x1,y1] = p1, [x2,y2] = p2, [x3,y3] = p3, [x4,y4] = p4;
+  const denom = (x1-x2)*(y3-y4) - (y1-y2)*(x3-x4);
+  if (Math.abs(denom) < 1e-9) return null;
+  const t = ((x1-x3)*(y3-y4) - (y1-y3)*(x3-x4)) / denom;
+  return [x1 + t*(x2-x1), y1 + t*(y2-y1)];
+}
+
+// The k-th bird map: Delta_k = (0, k+1, k, 2k+1)  [Eq. (1) in the paper]
+// New vertex Q_a = intersection of diagonal(P_a, P_{a+k+1}) and diagonal(P_{a+k}, P_{a+2k+1})
+// k=1 reduces to the ordinary pentagram map.
+function birdStep(P, k) {
+  const n = P.length;
+  const Q = [];
+  for (let a = 0; a < n; a++) {
+    const i1 = a % n;
+    const i2 = (a + k + 1) % n;
+    const i3 = (a + k) % n;
+    const i4 = (a + 2*k + 1) % n;
+    const pt = lineIntersect(P[i1], P[i2], P[i3], P[i4]);
+    Q.push(pt || P[a]);
+  }
+  return Q;
+}
+
+function computeIterates(P0, steps, k) {
+  const all = [P0];
+  let cur = P0;
+  for (let s = 0; s < steps; s++) {
+    cur = birdStep(cur, k);
+    if (cur.some(p => !isFinite(p[0]) || !isFinite(p[1]))) break;
+    all.push(cur);
+  }
+  return all;
+}
+
+const PALETTES = {
+  rainbow:     ['#ff2d55', '#ff9500', '#ffe600', '#34c759', '#00c7ff', '#5856ff', '#ff3bd4'],
+  fig9a:       ['#c81414', '#e8481c', '#f28c1e', '#f7c11e', '#8c1010', '#d4691e', '#ffd23f'],
+  fig9b:       ['#3a1a8c', '#5c2ea6', '#2451c7', '#3f8ef0', '#c23fc4', '#f06fd1', '#7b2fbf'],
+  fig10a:      ['#0b3d0b', '#1f7a1f', '#3fbf3f', '#111111', '#f5f5f0', '#2e9e2e', '#062606'],
+  fig10b:      ['#5c1830', '#8c2846', '#c94f78', '#f2a6c4', '#2f7a7a', '#5fc7c7', '#3a3a3a'],
+  blueharmony: ['#0a1a3d', '#123a7a', '#1f5fc4', '#3f8ef0', '#7fc4ff', '#0d2a5c', '#5aa8ff'],
+};
+
+function colorForIndex(i, total, paletteName) {
+  const pal = PALETTES[paletteName] || PALETTES.rainbow;
+  return pal[i % pal.length];
+}
+
+function drawFilledPolygon(P, color, outline) {
+  ctx.beginPath();
+  P.forEach((p, idx) => {
+    if (idx === 0) ctx.moveTo(p[0], p[1]);
+    else ctx.lineTo(p[0], p[1]);
+  });
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  if (outline) {
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 1.1;
+    ctx.stroke();
+  }
+}
+
+function drawPolygon(P, color, lw) {
+  ctx.beginPath();
+  P.forEach((p, idx) => {
+    if (idx === 0) ctx.moveTo(p[0], p[1]);
+    else ctx.lineTo(p[0], p[1]);
+  });
+  ctx.closePath();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = lw;
+  ctx.stroke();
+}
+
+function drawDiagonals(P, k, color) {
+  const n = P.length;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 0.6;
+  ctx.globalAlpha = 0.3;
+  for (let a = 0; a < n; a++) {
+    const i1 = a % n;
+    const i2 = (a + k + 1) % n;
+    ctx.beginPath();
+    ctx.moveTo(P[i1][0], P[i1][1]);
+    ctx.lineTo(P[i2][0], P[i2][1]);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function toSubscript(num) {
+  const subs = "₀₁₂₃₄₅₆₇₈₉";
+  return String(num).split('').map(d => subs[+d]).join('');
+}
+
+function updateMapLabel(n, k) {
+  let name = `Δ${toSubscript(k)} = (0, ${k+1}, ${k}, ${2*k+1})`;
+  let note = k === 1 ? " — 通常のペンタグラム写像" : " — 鳥写像 (bird map)";
+  const need = 3*k + 1;
+  let warn = "";
+  if (k > 1 && n <= 3*k) {
+    warn = `　⚠ n ≤ 3k のため退化しやすい`;
+  } else if (k > 1 && n === need) {
+    warn = `　(n = 3k+1: ぎりぎり鳥。図6のように裂けることがあります)`;
+  }
+  mapLabel.textContent = `${name}${note}, n = ${n}${warn}`;
+}
+
+function render(upTo) {
+  ctx.clearRect(0, 0, W, H);
+  const n = parseInt(nSlider.value, 10);
+  const k = parseInt(kSlider.value, 10);
+  const totalIters = parseInt(iterSlider.value, 10);
+  const paletteName = paletteSelect.value;
+  updateMapLabel(n, k);
+  const iterates = computeIterates(basePolygon, totalIters, k);
+  const shown = Math.min(upTo === undefined ? iterates.length : upTo + 1, iterates.length);
+
+  // Fill from the outermost polygon inward: since each inner polygon is
+  // drawn on top, this automatically creates vivid concentric colored
+  // rings/bands reminiscent of the triangulations in Figures 9-10 and
+  // Blue Harmony (Figure 1).
+  const outlineColor = paletteName === 'fig10a' ? '#000000' : 'rgba(0,0,0,0.55)';
+  for (let i = 0; i < shown; i++) {
+    const color = colorForIndex(i, iterates.length, paletteName);
+    drawFilledPolygon(iterates[i], color, outlineColor);
+  }
+  // faint diagonal guide lines of the base polygon on top for structure
+  if (shown > 0) drawDiagonals(iterates[0], k, 'rgba(255,255,255,0.35)');
+}
+
+function regenerate() {
+  const n = parseInt(nSlider.value, 10);
+  basePolygon = shapeSelect.value === 'regular' ? regularPolygon(n) : randomStarPolygon(n);
+  stopAnim();
+  render();
+}
+
+function stopAnim() {
+  if (animTimer) { clearInterval(animTimer); animTimer = null; }
+  animBtn.textContent = '▶ アニメーション';
+}
+
+function toggleAnim() {
+  if (animTimer) { stopAnim(); return; }
+  const totalIters = parseInt(iterSlider.value, 10);
+  animStep = 0;
+  animBtn.textContent = '⏸ 停止';
+  animTimer = setInterval(() => {
+    render(animStep);
+    animStep++;
+    if (animStep > totalIters) animStep = 0;
+  }, 500);
+}
+
+function setSliders(n, k, iters, shape) {
+  nSlider.value = n; nVal.textContent = n;
+  kSlider.value = k; kVal.textContent = k;
+  iterSlider.value = iters; iterVal.textContent = iters;
+  shapeSelect.value = shape;
+}
+
+const PRESETS = {
+  pentagram:   { n: 7,  k: 1,  iters: 8,  shape: 'regular' },
+  fig5:        { n: 7,  k: 2,  iters: 6,  shape: 'random'  },
+  fig6:        { n: 9,  k: 3,  iters: 3,  shape: 'regular' },
+  fig8:        { n: 13, k: 4,  iters: 5,  shape: 'random'  },
+  blueharmony: { n: 55, k: 17, iters: 4,  shape: 'random'  },
+};
+
+document.querySelectorAll('.presets button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const p = PRESETS[btn.dataset.preset];
+    if (!p) return;
+    setSliders(p.n, p.k, p.iters, p.shape);
+    regenerate();
+  });
+});
+
+nSlider.addEventListener('input', () => { nVal.textContent = nSlider.value; regenerate(); });
+kSlider.addEventListener('input', () => { kVal.textContent = kSlider.value; render(); });
+iterSlider.addEventListener('input', () => { iterVal.textContent = iterSlider.value; render(); });
+shapeSelect.addEventListener('change', regenerate);
+paletteSelect.addEventListener('change', () => render());
+regenBtn.addEventListener('click', regenerate);
+animBtn.addEventListener('click', toggleAnim);
+
+regenerate();
+</script>
+</body>
+</html>
