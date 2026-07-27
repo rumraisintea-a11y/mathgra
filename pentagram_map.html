@@ -95,6 +95,13 @@ k=1 のときは通常のペンタグラム写像（凸多角形は1点に収束
       <option value="blueharmony">Blue Harmony 風: 青</option>
     </select>
   </label>
+  <label>表示スタイル
+    <select id="styleSelect">
+      <option value="triangulate">三角形分割 (図9/10風)</option>
+      <option value="ring">リング塗りつぶし</option>
+      <option value="outline">輪郭のみ</option>
+    </select>
+  </label>
   <label>&nbsp;
     <button id="regenBtn" class="primary">再生成</button>
   </label>
@@ -130,6 +137,7 @@ const kVal = document.getElementById('kVal');
 const iterVal = document.getElementById('iterVal');
 const shapeSelect = document.getElementById('shapeSelect');
 const paletteSelect = document.getElementById('paletteSelect');
+const styleSelect = document.getElementById('styleSelect');
 const regenBtn = document.getElementById('regenBtn');
 const animBtn = document.getElementById('animBtn');
 const mapLabel = document.getElementById('mapLabel');
@@ -212,6 +220,32 @@ function colorForIndex(i, total, paletteName) {
   return pal[i % pal.length];
 }
 
+function shadeColor(hex, percent) {
+  // percent: -100..100, negative darkens, positive lightens
+  const num = parseInt(hex.slice(1), 16);
+  let r = (num >> 16), g = (num >> 8) & 0xff, b = num & 0xff;
+  const amt = Math.round(2.55 * percent);
+  r = Math.min(255, Math.max(0, r + amt));
+  g = Math.min(255, Math.max(0, g + amt));
+  b = Math.min(255, Math.max(0, b + amt));
+  return '#' + (0x1000000 + r*0x10000 + g*0x100 + b).toString(16).slice(1);
+}
+
+function drawTriangle(a, b, c, color, outline) {
+  ctx.beginPath();
+  ctx.moveTo(a[0], a[1]);
+  ctx.lineTo(b[0], b[1]);
+  ctx.lineTo(c[0], c[1]);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+  if (outline) {
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+  }
+}
+
 function drawFilledPolygon(P, color, outline) {
   ctx.beginPath();
   P.forEach((p, idx) => {
@@ -280,21 +314,48 @@ function render(upTo) {
   const k = parseInt(kSlider.value, 10);
   const totalIters = parseInt(iterSlider.value, 10);
   const paletteName = paletteSelect.value;
+  const style = styleSelect.value;
   updateMapLabel(n, k);
   const iterates = computeIterates(basePolygon, totalIters, k);
   const shown = Math.min(upTo === undefined ? iterates.length : upTo + 1, iterates.length);
+  const outlineColor = paletteName === 'fig10a' ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)';
 
-  // Fill from the outermost polygon inward: since each inner polygon is
-  // drawn on top, this automatically creates vivid concentric colored
-  // rings/bands reminiscent of the triangulations in Figures 9-10 and
-  // Blue Harmony (Figure 1).
-  const outlineColor = paletteName === 'fig10a' ? '#000000' : 'rgba(0,0,0,0.55)';
-  for (let i = 0; i < shown; i++) {
-    const color = colorForIndex(i, iterates.length, paletteName);
-    drawFilledPolygon(iterates[i], color, outlineColor);
+  if (style === 'triangulate') {
+    // Approximate the paper's degree-6 triangulation: between consecutive
+    // iterates P^(i) and P^(i+1), zig-zag triangles connect corresponding
+    // vertices, giving the same faceted look as Figures 9-10 / Blue Harmony.
+    for (let i = 0; i < shown - 1; i++) {
+      const outer = iterates[i], inner = iterates[i + 1];
+      const nn = outer.length;
+      const base = colorForIndex(i, iterates.length, paletteName);
+      const colorA = base;
+      const colorB = shadeColor(base, -14);
+      for (let j = 0; j < nn; j++) {
+        const jp1 = (j + 1) % nn;
+        drawTriangle(outer[j], outer[jp1], inner[j], colorA, outlineColor);
+        drawTriangle(outer[jp1], inner[jp1], inner[j], colorB, outlineColor);
+      }
+    }
+    // fill the innermost remaining polygon solidly (collapse region)
+    if (shown > 0) {
+      const last = iterates[shown - 1];
+      drawFilledPolygon(last, colorForIndex(shown - 1, iterates.length, paletteName), outlineColor);
+    }
+  } else if (style === 'ring') {
+    for (let i = 0; i < shown; i++) {
+      const color = colorForIndex(i, iterates.length, paletteName);
+      drawFilledPolygon(iterates[i], color, outlineColor);
+    }
+  } else {
+    for (let i = 0; i < shown; i++) {
+      const color = colorForIndex(i, iterates.length, paletteName);
+      drawPolygon(iterates[i], color, i === 0 ? 2 : 1.2);
+    }
   }
-  // faint diagonal guide lines of the base polygon on top for structure
-  if (shown > 0) drawDiagonals(iterates[0], k, 'rgba(255,255,255,0.35)');
+
+  if (style !== 'triangulate' && shown > 0) {
+    drawDiagonals(iterates[0], k, 'rgba(255,255,255,0.35)');
+  }
 }
 
 function regenerate() {
@@ -350,6 +411,7 @@ kSlider.addEventListener('input', () => { kVal.textContent = kSlider.value; rend
 iterSlider.addEventListener('input', () => { iterVal.textContent = iterSlider.value; render(); });
 shapeSelect.addEventListener('change', regenerate);
 paletteSelect.addEventListener('change', () => render());
+styleSelect.addEventListener('change', () => render());
 regenBtn.addEventListener('click', regenerate);
 animBtn.addEventListener('click', toggleAnim);
 
